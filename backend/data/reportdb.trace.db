@@ -1,6 +1,0 @@
-2026-03-18 19:41:09.924106+05:30 jdbc[120]: exception
-org.h2.jdbc.JdbcSQLSyntaxErrorException: Syntax error in SQL statement " SELECT 'Jan' AS [*]month, 12000 AS revenue UNION ALL\000a  SELECT 'Feb' AS month, 15000 AS revenue UNION ALL\000a  SELECT 'Mar' AS month, 14000 AS revenue UNION ALL\000a  SELECT 'Apr' AS month, 18000 AS revenue"; expected "identifier"; SQL statement:
- SELECT 'Jan' AS month, 12000 AS revenue UNION ALL
-  SELECT 'Feb' AS month, 15000 AS revenue UNION ALL
-  SELECT 'Mar' AS month, 14000 AS revenue UNION ALL
-  SELECT 'Apr' AS month, 18000 AS revenue [42001-224]
