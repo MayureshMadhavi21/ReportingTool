@@ -1,0 +1,24 @@
+package com.report.backend.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import lombok.Data;
+
+@Data
+public class ReportConnectorDto {
+    private Long id;
+    
+    @NotBlank(message = "Name is mandatory")
+    private String name;
+    
+    @NotBlank(message = "DB Type is mandatory")
+    private String dbType;
+    
+    @NotBlank(message = "JDBC URL is mandatory")
+    private String jdbcUrl;
+    
+    @NotBlank(message = "Username is mandatory")
+    private String username;
+    
+    @NotBlank(message = "Password is mandatory")
+    private String password; // Will be encrypted on save, and not returned normally, but kept here for DTO binding.
+}

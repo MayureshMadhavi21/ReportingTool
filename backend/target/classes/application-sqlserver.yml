@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:sqlserver://localhost:1433;databaseName=ReportToolDB;encrypt=false
+    driverClassName: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    username: sa
+    password: YourStrongPassword123
+  jpa:
+    database-platform: org.hibernate.dialect.SQLServerDialect
+    hibernate:
+      ddl-auto: none # Use the schema.sql provided
+    show-sql: false

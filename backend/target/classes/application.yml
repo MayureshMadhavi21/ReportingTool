@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: report-backend
+  profiles:
+    active: h2  # Default to H2 for easy development
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+server:
+  port: 8084
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
