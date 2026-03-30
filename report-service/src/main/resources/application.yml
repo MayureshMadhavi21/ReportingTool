@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: report-service
+  jpa:
+    open-in-view: false
+  datasource:
+    hikari:
+      maximum-pool-size: 100
+      minimum-idle: 20
+      idle-timeout: 300000
+      connection-timeout: 30000
+      max-lifetime: 1200000
+  profiles:
+    active: h2  # Default to H2 for easy development
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+server:
+  port: 8084
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html

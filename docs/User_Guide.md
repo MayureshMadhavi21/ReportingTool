@@ -11,7 +11,7 @@ This complete guide explains how to fully configure the application from scratch
 4. We will connect to the internal, in-memory test database (H2) for this demo. Fill in:
    - **Name:** `LocalH2`
    - **Database Type:** `H2`
-   - **JDBC URL:** `jdbc:h2:file:./data/reportdb`
+   - **JDBC URL:** `jdbc:h2:file:./data/reportingdb`
    - **Username:** `sa`
    - **Password:** `password`
 5. Click **Save**.

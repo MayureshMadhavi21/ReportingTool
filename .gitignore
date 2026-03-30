@@ -1,3 +1,11 @@
 backend/target/
 backend/data/
 backend/.idea/
+report-service/target/
+report-service/data/
+report-service/.idea/
+connector-query-service/target/
+connector-query-service/data/
+connector-query-service/.idea/
+*.txt
+*.log

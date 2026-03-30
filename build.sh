@@ -4,8 +4,13 @@ echo "=================================="
 echo " Building Report Generation Tool"
 echo "=================================="
 
-echo "--> Building Backend (Spring Boot)..."
-cd backend
+echo "--> Building Report Service (Spring Boot)..."
+cd report-service
+mvn clean install -DskipTests
+cd ..
+
+echo "--> Building Connector & Query Service (Spring Boot)..."
+cd connector-query-service
 mvn clean install -DskipTests
 cd ..
 

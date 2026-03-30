@@ -3,9 +3,14 @@ echo ==================================
 echo  Starting Report Generation Tool
 echo ==================================
 
-echo --^> Starting Backend...
-cd backend
-start "Report Backend" cmd /c "mvn spring-boot:run -Dspring-boot.run.profiles=h2"
+echo --^> Starting Report Service...
+cd report-service
+start "Report Service" cmd /c "mvn spring-boot:run -Dspring-boot.run.profiles=h2"
+cd ..
+
+echo --^> Starting Connector ^& Query Service...
+cd connector-query-service
+start "Connector Service" cmd /c "mvn spring-boot:run -Dspring-boot.run.profiles=h2"
 cd ..
 
 echo --^> Starting Frontend...
@@ -14,6 +19,6 @@ start "Report Frontend" cmd /c "npm run dev"
 cd ..
 
 echo ==================================
-echo  Both applications are starting in separate windows.
+echo  All 3 applications are starting in separate windows.
 echo  You can close those windows manually or run stop.bat
 echo ==================================

@@ -1,34 +1,30 @@
 import { useState, useEffect } from 'react';
-import { Button, Table, Group, Text, ActionIcon, Modal, TextInput, Select, Stack, FileInput, Badge } from '@mantine/core';
+import { useNavigate } from 'react-router-dom';
+import { 
+  Button, Table, Group, Text, ActionIcon, Modal, 
+  TextInput, Stack, FileInput, Textarea, Card, ThemeIcon, Tooltip, Center
+} from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconTrash, IconDeviceFloppy } from '@tabler/icons-react';
+import { IconTrash, IconPencil, IconPlus, IconFileDescription, IconHistory, IconEye } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
-import api from '../api';
-import type { Template, QueryDef } from '../types';
+import { reportApi } from '../api';
+import type { Template } from '../types';
 
 export default function Templates() {
   const [templates, setTemplates] = useState<Template[]>([]);
-  const [queries, setQueries] = useState<QueryDef[]>([]);
+  const navigate = useNavigate();
   
   const [uploadOpened, { open: openUpload, close: closeUpload }] = useDisclosure(false);
-  const [mappingOpened, { open: openMapping, close: closeMapping }] = useDisclosure(false);
-  
-  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
-  
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  
-  const [mappingQueryId, setMappingQueryId] = useState<string>('');
-  const [mappingNodeName, setMappingNodeName] = useState('');
 
   const fetchData = async () => {
     try {
-      const [tRes, qRes] = await Promise.all([api.get('/templates'), api.get('/queries')]);
-      setTemplates(tRes.data);
-      setQueries(qRes.data);
+      const { data } = await reportApi.get('/templates');
+      setTemplates(data);
     } catch (err) {
-      notifications.show({ title: 'Error', message: 'Failed to load data', color: 'red' });
+      notifications.show({ title: 'Error', message: 'Failed to load templates', color: 'red' });
     }
   };
 
@@ -44,124 +40,118 @@ export default function Templates() {
     formData.append('description', description);
 
     try {
-      await api.post('/templates', formData, {
+      await reportApi.post('/templates', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      notifications.show({ title: 'Success', message: 'Template uploaded', color: 'green' });
+      notifications.show({ title: 'Success', message: 'Template created', color: 'green' });
       closeUpload();
       setFile(null);
       setName('');
       setDescription('');
       fetchData();
     } catch (err) {
-      notifications.show({ title: 'Error', message: 'Failed to upload template', color: 'red' });
+      notifications.show({ title: 'Error', message: 'Failed to create template', color: 'red' });
     }
   };
 
-  const handleAddMapping = async () => {
-    if (!selectedTemplate || !mappingQueryId || !mappingNodeName) return;
+  const handleDeleteTemplate = async (id: string) => {
+    if (!confirm('Are you certain? This will delete the template and all its snapshots.')) return;
     try {
-      await api.post(`/templates/${selectedTemplate.id}/mappings`, {
-        templateId: selectedTemplate.id,
-        queryId: Number(mappingQueryId),
-        jsonNodeName: mappingNodeName
-      });
-      notifications.show({ title: 'Success', message: 'Mapping added', color: 'green' });
-      closeMapping();
-      setMappingNodeName('');
-      setMappingQueryId('');
+      await reportApi.delete(`/templates/${id}`);
+      notifications.show({ title: 'Success', message: 'Template removed', color: 'green' });
       fetchData();
     } catch (err) {
-      notifications.show({ title: 'Error', message: 'Failed to add mapping', color: 'red' });
-    }
-  };
-
-  const handleDeleteMapping = async (mappingId: number) => {
-    try {
-      await api.delete(`/templates/mappings/${mappingId}`);
-      notifications.show({ title: 'Success', message: 'Mapping removed', color: 'green' });
-      fetchData();
-    } catch (err) {
-      notifications.show({ title: 'Error', message: 'Failed to remove mapping', color: 'red' });
+      notifications.show({ title: 'Error', message: 'Failed to delete template', color: 'red' });
     }
   };
 
   return (
-    <div>
-      <Group justify="space-between" mb="md">
-        <Text size="xl" fw={700}>Report Templates</Text>
-        <Button onClick={openUpload}>Upload Template</Button>
+    <Stack gap="xl">
+      <Group justify="space-between">
+        <div>
+          <Text size="xl" fw={800}>Report Inventory</Text>
+          <Text size="sm" c="dimmed">Track your master templates and their historical revision snapshots.</Text>
+        </div>
+        <Button leftSection={<IconPlus size={18}/>} onClick={openUpload}>Create Template</Button>
       </Group>
 
-      <Table striped highlightOnHover withTableBorder>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Name</Table.Th>
-            <Table.Th>Type</Table.Th>
-            <Table.Th>Mappings</Table.Th>
-            <Table.Th>Actions</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {templates.map((t) => (
-            <Table.Tr key={t.id}>
-              <Table.Td>{t.name}</Table.Td>
-              <Table.Td><Badge color={t.fileType === 'XLSX' ? 'green' : 'blue'}>{t.fileType}</Badge></Table.Td>
-              <Table.Td>
-                {t.mappings?.map(m => (
-                  <Badge key={m.id} variant="outline" mr="xs" rightSection={
-                    <ActionIcon size="xs" color="red" variant="transparent" onClick={() => handleDeleteMapping(m.id)}>
-                      <IconTrash size={10} />
-                    </ActionIcon>
-                  }>
-                    {m.jsonNodeName} ➜ {m.queryName}
-                  </Badge>
-                ))}
-                <Button size="compact-xs" variant="light" onClick={() => { setSelectedTemplate(t); openMapping(); }}>
-                  + Add
-                </Button>
-              </Table.Td>
-              <Table.Td>
-                {/* Future: Delete Template Action */}
-              </Table.Td>
-            </Table.Tr>
-          ))}
-          {templates.length === 0 && (
+      <Card withBorder shadow="sm" radius="md" p={0}>
+        <Table verticalSpacing="md" horizontalSpacing="lg" highlightOnHover>
+          <Table.Thead bg="gray.0">
             <Table.Tr>
-              <Table.Td colSpan={4} align="center">No templates found</Table.Td>
+              <Table.Th>Template Name</Table.Th>
+              <Table.Th>Description</Table.Th>
+              <Table.Th>Production Version</Table.Th>
+              <Table.Th style={{ textAlign: 'center' }}>Actions</Table.Th>
             </Table.Tr>
-          )}
-        </Table.Tbody>
-      </Table>
+          </Table.Thead>
+          <Table.Tbody>
+            {templates.map((t) => (
+              <Table.Tr key={t.id}>
+                <Table.Td>
+                  <Group gap="sm">
+                    <ThemeIcon color="blue" variant="light" size="md">
+                      <IconFileDescription size={18} />
+                    </ThemeIcon>
+                    <Text fw={600} size="sm">{t.name}</Text>
+                  </Group>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="xs" c="dimmed" lineClamp={1}>{t.description || 'No description provided'}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="xs" fw={700}>v{t.latestVersionNumber}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Center>
+                    <Group gap="md">
+                      <Tooltip label="View Template Details">
+                        <ActionIcon variant="light" color="blue" onClick={() => navigate(`/templates/${t.id}/view`)}>
+                          <IconEye size={18} />
+                        </ActionIcon>
+                      </Tooltip>
+                      <Tooltip label="Edit Workshop">
+                        <ActionIcon variant="light" color="orange" onClick={() => navigate(`/templates/${t.id}/edit`)}>
+                          <IconPencil size={18} />
+                        </ActionIcon>
+                      </Tooltip>
+                      <Tooltip label="Version Snapshots">
+                        <ActionIcon variant="light" color="indigo" onClick={() => navigate(`/templates/${t.id}/versions`)}>
+                          <IconHistory size={18} />
+                        </ActionIcon>
+                      </Tooltip>
+                      <Tooltip label="Delete Template">
+                        <ActionIcon variant="light" color="red" onClick={() => handleDeleteTemplate(t.id)}>
+                          <IconTrash size={18} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
+                  </Center>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+            {templates.length === 0 && (
+              <Table.Tr>
+                <Table.Td colSpan={4} align="center" py="xl">
+                  <Text c="dimmed">No templates found.</Text>
+                </Table.Td>
+              </Table.Tr>
+            )}
+          </Table.Tbody>
+        </Table>
+      </Card>
 
-      <Modal opened={uploadOpened} onClose={closeUpload} title="Upload New Template">
+      <Modal opened={uploadOpened} onClose={closeUpload} title="New Template Record" size="lg">
         <Stack>
-          <TextInput label="Template Name" required value={name} onChange={(e) => setName(e.target.value)} />
-          <TextInput label="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
-          <FileInput label="Document File" required placeholder="Select Word/Excel file" accept=".docx,.xlsx" value={file} onChange={setFile} />
-          <Button onClick={handleUpload} mt="md" leftSection={<IconDeviceFloppy size={16}/>}>Upload</Button>
+          <TextInput label="Template Name" placeholder="e.g. Compliance Report" required value={name} onChange={(e) => setName(e.target.value)} />
+          <Textarea label="Description" placeholder="Context for other authors" value={description} onChange={(e) => setDescription(e.target.value)} />
+          <FileInput label="Initial Document (v1)" required placeholder="Select .docx or .xlsx" accept=".docx,.xlsx" value={file} onChange={setFile} />
+          <Group justify="flex-end" mt="md">
+            <Button variant="subtle" onClick={closeUpload}>Cancel</Button>
+            <Button onClick={handleUpload}>Create Inventory Record</Button>
+          </Group>
         </Stack>
       </Modal>
-
-      <Modal opened={mappingOpened} onClose={closeMapping} title={`Map Query to ${selectedTemplate?.name}`}>
-        <Stack>
-          <Select 
-            label="Query" 
-            required 
-            data={queries.map(q => ({ value: q.id.toString(), label: q.name }))} 
-            value={mappingQueryId} 
-            onChange={(v) => setMappingQueryId(v || '')} 
-          />
-          <TextInput 
-            label="JSON Node Name (e.g. 'sales')" 
-            description="The placeholder object name used in the Aspose template (e.g. <<[sales.amount]>>)"
-            required 
-            value={mappingNodeName} 
-            onChange={(e) => setMappingNodeName(e.target.value)} 
-          />
-          <Button onClick={handleAddMapping} mt="md">Save Mapping</Button>
-        </Stack>
-      </Modal>
-    </div>
+    </Stack>
   );
 }

@@ -1,32 +1,45 @@
 export interface Connector {
-  id: number;
+  id: string;
   name: string;
   dbType: string;
   jdbcUrl: string;
   username: string;
-  password?: string; // Only used when creating
+  password?: string;
 }
 
 export interface QueryDef {
-  id: number;
-  connectorId: number;
+  id: string;
+  connectorId: string;
   name: string;
   queryText: string;
   description: string;
 }
 
 export interface TemplateMapping {
-  id: number;
-  templateId: number;
-  queryId: number;
-  jsonNodeName: string;
+  id: string;
+  templateId: string;
+  queryId: string;
   queryName?: string;
+  connectorId?: string;
+  connectorName?: string;
+  jsonNodeName: string;
+}
+
+export interface TemplateVersion {
+  id: string;
+  versionNumber: number;
+  storagePath: string;
+  fileType: string;
+  createdBy: string;
+  isActive: number;
+  createdAt: string;
+  mappings: TemplateMapping[];
 }
 
 export interface Template {
-  id: number;
+  id: string;
   name: string;
   description: string;
-  fileType: string;
-  mappings: TemplateMapping[];
+  latestVersionNumber?: number;
+  versions: TemplateVersion[];
 }

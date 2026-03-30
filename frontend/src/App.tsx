@@ -3,6 +3,7 @@ import MainLayout from './components/MainLayout';
 import Connectors from './pages/Connectors';
 import Queries from './pages/Queries';
 import Templates from './pages/Templates';
+import TemplateDetails from './pages/TemplateDetails';
 import Generate from './pages/Generate';
 
 const Dashboard = () => <div style={{ padding: 20 }}>Welcome to Report Generator! Select an option from the sidebar to begin managing data sources or generating reports.</div>;
@@ -16,6 +17,16 @@ function App() {
           <Route path="connectors" element={<Connectors />} />
           <Route path="queries" element={<Queries />} />
           <Route path="templates" element={<Templates />} />
+          
+          {/* Main Template Actions */}
+          <Route path="templates/:id/view" element={<TemplateDetails />} />
+          <Route path="templates/:id/edit" element={<TemplateDetails editMode={true} />} />
+          <Route path="templates/:id/versions" element={<TemplateDetails versionsMode={true} />} />
+          
+          {/* Version Specific Actions */}
+          <Route path="templates/:id/versions/:versionId/view" element={<TemplateDetails versionViewMode={true} />} />
+          <Route path="templates/:id/versions/:versionId/edit" element={<TemplateDetails versionEditMode={true} />} />
+          
           <Route path="generate" element={<Generate />} />
         </Route>
       </Routes>

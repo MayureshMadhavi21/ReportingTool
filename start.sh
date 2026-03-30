@@ -4,12 +4,20 @@ echo "=================================="
 echo " Starting Report Generation Tool"
 echo "=================================="
 
-echo "--> Starting Backend on port 8084..."
-cd backend
-mvn spring-boot:run -Dspring-boot.run.profiles=h2 > backend.log 2>&1 &
-BACKEND_PID=$!
-echo $BACKEND_PID > backend.pid
-echo "Backend started with PID $BACKEND_PID (Logs in backend/backend.log)"
+echo "--> Starting Report Service on port 8084..."
+cd report-service
+mvn spring-boot:run -Dspring-boot.run.profiles=h2 > report-service.log 2>&1 &
+REPORT_PID=$!
+echo $REPORT_PID > report-service.pid
+echo "Report Service started with PID $REPORT_PID (Logs in report-service/report-service.log)"
+cd ..
+
+echo "--> Starting Connector & Query Service on port 8085..."
+cd connector-query-service
+mvn spring-boot:run -Dspring-boot.run.profiles=h2 > connector-query-service.log 2>&1 &
+CONNECTOR_PID=$!
+echo $CONNECTOR_PID > connector-query-service.pid
+echo "Connector & Query Service started with PID $CONNECTOR_PID (Logs in connector-query-service/connector-query-service.log)"
 cd ..
 
 echo "--> Starting Frontend on port 5173..."
