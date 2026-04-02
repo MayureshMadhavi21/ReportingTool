@@ -33,6 +33,13 @@ public class ReportConnectorController {
         return ResponseEntity.ok(service.getConnectorById(id));
     }
 
+    @GetMapping("/search")
+    @Operation(summary = "Find a connector by name")
+    public ResponseEntity<ReportConnectorDto> getConnectorByName(@RequestParam("name") String name) {
+        ReportConnectorDto dto = service.getConnectorByName(name);
+        return dto != null ? ResponseEntity.ok(dto) : ResponseEntity.notFound().build();
+    }
+
     @PostMapping
     @Operation(summary = "Register a new connector")
     public ResponseEntity<ReportConnectorDto> createConnector(@Valid @RequestBody ReportConnectorDto dto) {

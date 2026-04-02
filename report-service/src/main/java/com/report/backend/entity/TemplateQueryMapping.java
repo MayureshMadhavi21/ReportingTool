@@ -33,6 +33,9 @@ public class TemplateQueryMapping {
     @Column(name = "connector_name")
     private String connectorName;
 
+    @Column(name = "connector_db_type")
+    private String connectorDbType;
+
     @Column(name = "json_node_name", nullable = false, length = 100)
     private String jsonNodeName;
 

@@ -15,11 +15,15 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.stream.Collectors;
+import com.report.backend.dto.MigrationDto;
 
 @Service
 @RequiredArgsConstructor
@@ -103,6 +107,7 @@ public class ReportTemplateService {
             newMapping.setQueryName(oldMapping.getQueryName());
             newMapping.setConnectorId(oldMapping.getConnectorId());
             newMapping.setConnectorName(oldMapping.getConnectorName());
+            newMapping.setConnectorDbType(oldMapping.getConnectorDbType());
             newMapping.setJsonNodeName(oldMapping.getJsonNodeName());
             nextVersion.getMappings().add(newMapping);
         }
@@ -166,18 +171,20 @@ public class ReportTemplateService {
     }
 
     @Transactional(readOnly = true)
-    public Set<String> getPlaceholdersForVersion(String versionId) {
+    public List<com.report.backend.dto.PlaceholderMetadataDto> getPlaceholdersForVersion(String versionId) {
         ReportTemplateVersion version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new RuntimeException("Version not found"));
 
-        Set<String> allPlaceholders = new HashSet<>();
+        Map<String, com.report.backend.dto.PlaceholderMetadataDto> allPlaceholders = new HashMap<>();
         for (TemplateQueryMapping mapping : version.getMappings()) {
-            Set<String> placeholders = connectorQueryServiceClient.getPlaceholders(mapping.getQueryId());
+            List<com.report.backend.dto.PlaceholderMetadataDto> placeholders = connectorQueryServiceClient.getPlaceholders(mapping.getQueryId());
             if (placeholders != null) {
-                allPlaceholders.addAll(placeholders);
+                for (com.report.backend.dto.PlaceholderMetadataDto p : placeholders) {
+                    allPlaceholders.putIfAbsent(p.getName(), p);
+                }
             }
         }
-        return allPlaceholders;
+        return new ArrayList<>(allPlaceholders.values());
     }
 
     @Transactional
@@ -193,6 +200,7 @@ public class ReportTemplateService {
         String queryName = queryDetails != null ? (String) queryDetails.get("name") : "Unknown Query";
         String connectorId = queryDetails != null ? (String) queryDetails.get("connectorId") : null;
         String connectorName = queryDetails != null ? (String) queryDetails.get("connectorName") : "Unknown Connector";
+        String connectorDbType = queryDetails != null ? (String) queryDetails.get("connectorDbType") : "H2"; // Fallback to current default if unknown
 
         TemplateQueryMapping mapping = new TemplateQueryMapping();
         mapping.setTemplateVersion(version);
@@ -200,6 +208,7 @@ public class ReportTemplateService {
         mapping.setQueryName(queryName);
         mapping.setConnectorId(connectorId);
         mapping.setConnectorName(connectorName);
+        mapping.setConnectorDbType(connectorDbType);
         mapping.setJsonNodeName(dto.getJsonNodeName());
 
         return mapMappingToDto(mappingRepository.save(mapping));
@@ -217,6 +226,7 @@ public class ReportTemplateService {
         String queryName = queryDetails != null ? (String) queryDetails.get("name") : "Unknown Query";
         String connectorId = queryDetails != null ? (String) queryDetails.get("connectorId") : null;
         String connectorName = queryDetails != null ? (String) queryDetails.get("connectorName") : "Unknown Connector";
+        String connectorDbType = queryDetails != null ? (String) queryDetails.get("connectorDbType") : "H2";
 
         TemplateQueryMapping mapping = new TemplateQueryMapping();
         mapping.setTemplateVersion(latest);
@@ -224,6 +234,7 @@ public class ReportTemplateService {
         mapping.setQueryName(queryName);
         mapping.setConnectorId(connectorId);
         mapping.setConnectorName(connectorName);
+        mapping.setConnectorDbType(connectorDbType);
         mapping.setJsonNodeName(dto.getJsonNodeName());
 
         return mapMappingToDto(mappingRepository.save(mapping));
@@ -242,11 +253,13 @@ public class ReportTemplateService {
         String queryName = queryDetails != null ? (String) queryDetails.get("name") : "Unknown Query";
         String connectorId = queryDetails != null ? (String) queryDetails.get("connectorId") : null;
         String connectorName = queryDetails != null ? (String) queryDetails.get("connectorName") : "Unknown Connector";
+        String connectorDbType = queryDetails != null ? (String) queryDetails.get("connectorDbType") : "H2";
 
         mapping.setQueryId(dto.getQueryId());
         mapping.setQueryName(queryName);
         mapping.setConnectorId(connectorId);
         mapping.setConnectorName(connectorName);
+        mapping.setConnectorDbType(connectorDbType);
         mapping.setJsonNodeName(dto.getJsonNodeName());
 
         return mapMappingToDto(mappingRepository.save(mapping));
@@ -258,18 +271,20 @@ public class ReportTemplateService {
     }
 
     @Transactional(readOnly = true)
-    public Set<String> getPlaceholdersForTemplate(String templateId) {
+    public List<com.report.backend.dto.PlaceholderMetadataDto> getPlaceholdersForTemplate(String templateId) {
         ReportTemplateVersion latest = versionRepository.findTopByTemplateIdOrderByVersionNumberDesc(templateId)
                 .orElseThrow(() -> new RuntimeException("No version found for template"));
 
-        Set<String> allPlaceholders = new HashSet<>();
+        Map<String, com.report.backend.dto.PlaceholderMetadataDto> allPlaceholders = new HashMap<>();
         for (TemplateQueryMapping mapping : latest.getMappings()) {
-            Set<String> placeholders = connectorQueryServiceClient.getPlaceholders(mapping.getQueryId());
+            List<com.report.backend.dto.PlaceholderMetadataDto> placeholders = connectorQueryServiceClient.getPlaceholders(mapping.getQueryId());
             if (placeholders != null) {
-                allPlaceholders.addAll(placeholders);
+                for (com.report.backend.dto.PlaceholderMetadataDto p : placeholders) {
+                    allPlaceholders.putIfAbsent(p.getName(), p);
+                }
             }
         }
-        return allPlaceholders;
+        return new ArrayList<>(allPlaceholders.values());
     }
 
     @Transactional(readOnly = true)
@@ -289,6 +304,353 @@ public class ReportTemplateService {
         ReportTemplateVersion version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new RuntimeException("Version not found"));
         return version.getStoragePath(); // This contains the filename
+    }
+
+    @Transactional(readOnly = true)
+    public MigrationDto.MigrationAnalysisDto analyzeImport(MigrationDto.TemplateExportDto data) {
+        MigrationDto.MigrationAnalysisDto analysis = new MigrationDto.MigrationAnalysisDto();
+
+        // --- Analyze Connectors ---
+        Map<String, MigrationDto.ConnectorAnalysis> connectorMap = new HashMap<>();
+        Map<String, List<String>> connectorImpactMap = new HashMap<>();
+
+        for (MigrationDto.ExportedConnectorDto c : data.getConnectors()) {
+            MigrationDto.ConnectorAnalysis ca = new MigrationDto.ConnectorAnalysis();
+            Map<String, Object> existing = connectorQueryServiceClient.getConnectorByName(c.getName());
+            if (existing != null && existing.get("id") != null) {
+                ca.setExists(true);
+                ca.setExistingId((String) existing.get("id"));
+            } else {
+                ca.setExists(false);
+            }
+            connectorMap.put(c.getName(), ca);
+
+            // Build impact: which queries from this export use this connector
+            List<String> affectedQueryNames = data.getQueries().stream()
+                    .filter(q -> c.getName().equals(q.getConnectorName()))
+                    .map(MigrationDto.ExportedQueryDto::getName)
+                    .collect(Collectors.toList());
+            connectorImpactMap.put(c.getName(), affectedQueryNames);
+        }
+
+        // --- Analyze Queries ---
+        Map<String, MigrationDto.QueryAnalysis> queryMap = new HashMap<>();
+        Map<String, List<String>> queryImpactMap = new HashMap<>();
+
+        for (MigrationDto.ExportedQueryDto q : data.getQueries()) {
+            MigrationDto.QueryAnalysis qa = new MigrationDto.QueryAnalysis();
+
+            // Find the connector ID for this query's connector
+            MigrationDto.ConnectorAnalysis ca = connectorMap.get(q.getConnectorName());
+            String connectorId = (ca != null && ca.isExists()) ? ca.getExistingId() : null;
+
+            Map<String, Object> existingQuery = null;
+            if (connectorId != null) {
+                existingQuery = connectorQueryServiceClient.getQueryByName(connectorId, q.getName());
+            }
+
+            if (existingQuery != null && existingQuery.get("id") != null) {
+                qa.setExists(true);
+                qa.setExistingId((String) existingQuery.get("id"));
+                // Option B: fetch current query text for SQL diff view
+                qa.setCurrentQueryText(existingQuery.get("queryText") != null
+                        ? (String) existingQuery.get("queryText") : "");
+            } else {
+                qa.setExists(false);
+            }
+            queryMap.put(q.getName(), qa);
+
+            // Build impact: which template versions (from export) reference this query
+            List<String> affectedTemplateVersions = new ArrayList<>();
+            for (MigrationDto.ExportedVersionDto v : data.getVersions()) {
+                boolean used = v.getMappings().stream()
+                        .anyMatch(m -> q.getName().equals(m.getQueryName()));
+                if (used) {
+                    affectedTemplateVersions.add("v" + v.getVersionNumber() + " of '" + data.getTemplateName() + "'");
+                }
+            }
+            queryImpactMap.put(q.getName(), affectedTemplateVersions);
+        }
+
+        // --- Analyze Template ---
+        boolean templateExists = templateRepository.findByName(data.getTemplateName()).isPresent();
+
+        analysis.setConnectors(connectorMap);
+        analysis.setQueries(queryMap);
+        analysis.setTemplateExists(templateExists);
+        analysis.setConnectorImpactMap(connectorImpactMap);
+        analysis.setQueryImpactMap(queryImpactMap);
+        return analysis;
+    }
+
+    @Transactional(readOnly = true)
+    public MigrationDto.TemplateExportDto exportTemplate(String templateId) {
+        ReportTemplate template = templateRepository.findById(templateId)
+                .orElseThrow(() -> new RuntimeException("Template not found"));
+
+        MigrationDto.TemplateExportDto export = new MigrationDto.TemplateExportDto();
+        export.setTemplateName(template.getName());
+        export.setDescription(template.getDescription());
+
+        List<MigrationDto.ExportedConnectorDto> connectors = new ArrayList<>();
+        List<MigrationDto.ExportedQueryDto> queries = new ArrayList<>();
+        List<MigrationDto.ExportedVersionDto> versions = new ArrayList<>();
+
+        Set<String> processedConnectorIds = new HashSet<>();
+        Set<String> processedQueryIds = new HashSet<>();
+
+        for (ReportTemplateVersion version : template.getVersions()) {
+            MigrationDto.ExportedVersionDto vDto = new MigrationDto.ExportedVersionDto();
+            vDto.setVersionNumber(version.getVersionNumber());
+            vDto.setIsActive(version.getIsActive());
+            vDto.setOriginalPath(version.getStoragePath());
+            
+            // Extract filename from path for debugging visibility
+            String fullPath = version.getStoragePath();
+            String fName = fullPath.substring(Math.max(fullPath.lastIndexOf("/"), fullPath.lastIndexOf("\\")) + 1);
+            vDto.setFileName(fName);
+
+            byte[] fileBytes = storageStrategy.loadTemplate(version.getStoragePath());
+            vDto.setFileContentBase64(Base64.getEncoder().encodeToString(fileBytes));
+
+            List<MigrationDto.ExportedMappingDto> mappings = new ArrayList<>();
+            for (TemplateQueryMapping mapping : version.getMappings()) {
+                Map<String, Object> queryDetails = connectorQueryServiceClient.getQueryDetails(mapping.getQueryId());
+                Map<String, Object> connDetails = connectorQueryServiceClient
+                        .getConnectorDetails(mapping.getConnectorId());
+
+                String qName = queryDetails != null ? (String) queryDetails.get("name") : mapping.getQueryName();
+                String cName = connDetails != null ? (String) connDetails.get("name") : mapping.getConnectorName();
+
+                MigrationDto.ExportedMappingDto mDto = new MigrationDto.ExportedMappingDto();
+                mDto.setQueryName(qName);
+                mDto.setConnectorName(cName);
+                mDto.setJsonNodeName(mapping.getJsonNodeName());
+                mappings.add(mDto);
+
+                // Collect unique queries and connectors
+                if (!processedQueryIds.contains(mapping.getQueryId()) && queryDetails != null) {
+                    MigrationDto.ExportedQueryDto qExport = new MigrationDto.ExportedQueryDto();
+                    qExport.setName(qName);
+                    qExport.setQueryText((String) queryDetails.get("queryText"));
+                    qExport.setConnectorName(cName);
+                    queries.add(qExport);
+                    processedQueryIds.add(mapping.getQueryId());
+                }
+
+                if (!processedConnectorIds.contains(mapping.getConnectorId()) && connDetails != null) {
+                    MigrationDto.ExportedConnectorDto cExport = new MigrationDto.ExportedConnectorDto();
+                    cExport.setName(cName);
+                    cExport.setType((String) connDetails.get("dbType"));
+                    cExport.setUrl((String) connDetails.get("jdbcUrl"));
+                    cExport.setUsername((String) connDetails.get("username"));
+                    cExport.setHost((String) connDetails.get("host"));
+                    cExport.setPort((Integer) connDetails.get("port"));
+                    cExport.setDbName((String) connDetails.get("dbName"));
+                    cExport.setUseRawUrl(connDetails.get("useRawUrl") != null ? (Boolean) connDetails.get("useRawUrl") : false);
+                    connectors.add(cExport);
+                    processedConnectorIds.add(mapping.getConnectorId());
+                }
+            }
+            vDto.setMappings(mappings);
+            versions.add(vDto);
+        }
+
+        export.setConnectors(connectors);
+        export.setQueries(queries);
+        export.setVersions(versions);
+
+        return export;
+    }
+
+    @Transactional
+    public ReportTemplateDto importTemplate(MigrationDto.ImportRequestDto request) {
+        MigrationDto.TemplateExportDto data = request.getExportData();
+
+        // 1. Resolve Connectors
+        Map<String, String> connectorNameToId = new HashMap<>();
+        Map<String, String> connectorNameToNewName = new HashMap<>();
+        for (MigrationDto.ConnectorImportConfig config : request.getConnectors()) {
+            MigrationDto.ExportedConnectorDto exported = data.getConnectors().stream()
+                    .filter(c -> c.getName().equals(config.getOriginalName()))
+                    .findFirst().orElse(null);
+
+            if (exported == null)
+                continue;
+
+            String targetId;
+            String targetName = config.getOriginalName();
+            if ("SKIP".equals(config.getStrategy())) {
+                Map<String, Object> existing = connectorQueryServiceClient.getConnectorByName(config.getOriginalName());
+                targetId = (String) existing.get("id");
+            } else if ("OVERRIDE".equals(config.getStrategy())) {
+                Map<String, Object> existing = connectorQueryServiceClient.getConnectorByName(config.getOriginalName());
+                targetId = (String) existing.get("id");
+                connectorQueryServiceClient.updateConnector(targetId, exported, config.getOriginalName(),
+                        config.getPassword());
+            } else { // CREATE_NEW
+                targetName = config.getTargetName();
+                Map<String, Object> created = connectorQueryServiceClient.createConnector(exported,
+                        targetName, config.getPassword());
+                targetId = (String) created.get("id");
+            }
+            connectorNameToId.put(config.getOriginalName(), targetId);
+            connectorNameToNewName.put(config.getOriginalName(), targetName);
+        }
+
+        // 2. Resolve Queries
+        Map<String, String> queryNameToId = new HashMap<>();
+        Map<String, String> queryNameToNewName = new HashMap<>();
+        for (MigrationDto.QueryImportConfig config : request.getQueries()) {
+            MigrationDto.ExportedQueryDto exported = data.getQueries().stream()
+                    .filter(q -> q.getName().equals(config.getOriginalName()))
+                    .findFirst().orElse(null);
+
+            if (exported == null)
+                continue;
+
+            // Resolve connectorId: prefer the resolved import connector, fall back to the live record
+            String connectorId = connectorNameToId.get(exported.getConnectorName());
+
+            String targetId;
+            String targetName = config.getOriginalName();
+
+            if ("SKIP".equals(config.getStrategy())) {
+                // ... same skip lookup ...
+                Map<String, Object> liveQuery = null;
+                if (connectorId != null) {
+                    liveQuery = connectorQueryServiceClient.getQueryByName(connectorId, config.getOriginalName());
+                }
+                if (liveQuery == null || liveQuery.get("id") == null) {
+                    // Search without connectorId — find the connector first by name
+                    Map<String, Object> liveConnector = connectorQueryServiceClient.getConnectorByName(exported.getConnectorName());
+                    if (liveConnector != null && liveConnector.get("id") != null) {
+                        connectorId = (String) liveConnector.get("id");
+                        liveQuery = connectorQueryServiceClient.getQueryByName(connectorId, config.getOriginalName());
+                    }
+                }
+                if (liveQuery == null || liveQuery.get("id") == null) {
+                    throw new RuntimeException(
+                        "SKIP strategy: could not find existing query '" + config.getOriginalName() + "'. " +
+                        "The connector for this query may not exist in the target environment.");
+                }
+                targetId = (String) liveQuery.get("id");
+
+            } else if ("OVERRIDE".equals(config.getStrategy())) {
+                // ... same override logic ...
+                if (connectorId == null) {
+                    Map<String, Object> liveConnector = connectorQueryServiceClient.getConnectorByName(exported.getConnectorName());
+                    if (liveConnector == null || liveConnector.get("id") == null) {
+                        throw new RuntimeException(
+                            "OVERRIDE strategy: connector '" + exported.getConnectorName() + "' does not exist " +
+                            "in the target environment. Cannot override query '" + config.getOriginalName() + "'.");
+                    }
+                    connectorId = (String) liveConnector.get("id");
+                }
+                Map<String, Object> existing = connectorQueryServiceClient.getQueryByName(connectorId, config.getOriginalName());
+                if (existing == null || existing.get("id") == null) {
+                    throw new RuntimeException(
+                        "OVERRIDE strategy: query '" + config.getOriginalName() + "' not found on connector '" +
+                        exported.getConnectorName() + "' in the target environment.");
+                }
+                targetId = (String) existing.get("id");
+                connectorQueryServiceClient.updateQuery(targetId, exported, connectorId, config.getOriginalName());
+
+            } else { // CREATE_NEW
+                if (connectorId == null) {
+                    throw new RuntimeException(
+                        "Cannot create query '" + config.getTargetName() + "': connector '" +
+                        exported.getConnectorName() + "' was not resolved. " +
+                        "Ensure the connector is also being imported or already exists in the target.");
+                }
+                targetName = config.getTargetName();
+                Map<String, Object> created = connectorQueryServiceClient.createQuery(exported, connectorId,
+                        targetName);
+                targetId = (String) created.get("id");
+            }
+            queryNameToId.put(config.getOriginalName(), targetId);
+            queryNameToNewName.put(config.getOriginalName(), targetName);
+        }
+
+        // 3. Resolve Template
+        ReportTemplate template;
+        if ("SKIP".equals(request.getTemplate().getStrategy())) {
+            template = templateRepository.findByName(request.getTemplate().getOriginalName())
+                    .orElseThrow(() -> new RuntimeException("Template to skip not found"));
+        } else if ("OVERRIDE".equals(request.getTemplate().getStrategy())) {
+            template = templateRepository.findByName(request.getTemplate().getOriginalName())
+                    .orElseThrow(() -> new RuntimeException("Template to override not found"));
+            template.setDescription(data.getDescription());
+            template = templateRepository.save(template);
+
+            // Delete old versions
+            for (ReportTemplateVersion v : template.getVersions()) {
+                storageStrategy.deleteTemplate(v.getStoragePath());
+                versionRepository.delete(v);
+            }
+            template.getVersions().clear();
+        } else { // CREATE_NEW
+            String targetName = request.getTemplate().getTargetName();
+            // Pre-flight check: fail early BEFORE any file I/O to avoid orphaned files on disk
+            if (templateRepository.findByName(targetName).isPresent()) {
+                throw new RuntimeException(
+                    "Cannot create template: a template named '" + targetName + "' already exists in this environment. " +
+                    "Please choose a different name under 'Import as New Template'.");
+            }
+            template = new ReportTemplate();
+            template.setName(targetName);
+            template.setDescription(data.getDescription());
+            template = templateRepository.save(template);
+        }
+
+        // 4. Import Versions & Mappings
+        for (MigrationDto.ExportedVersionDto vExport : data.getVersions()) {
+            ReportTemplateVersion version = new ReportTemplateVersion();
+            version.setTemplate(template);
+            version.setVersionNumber(vExport.getVersionNumber());
+            version.setCreatedBy("Migration System");
+            version.setIsActive(vExport.getIsActive());
+
+            byte[] fileBytes = Base64.getDecoder().decode(vExport.getFileContentBase64());
+            String newPath;
+            try {
+                newPath = storageStrategy.saveTemplate(template.getId() + "_v" + version.getVersionNumber(), fileBytes,
+                        vExport.getFileName());
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to save template file during migration", e);
+            }
+            version.setStoragePath(newPath);
+
+            // Recreate mappings
+            for (MigrationDto.ExportedMappingDto mExport : vExport.getMappings()) {
+                TemplateQueryMapping mapping = new TemplateQueryMapping();
+                mapping.setTemplateVersion(version);
+                mapping.setJsonNodeName(mExport.getJsonNodeName());
+                
+                // Use new names if present, otherwise fall back to original names from JSON
+                String resolvedQueryName = queryNameToNewName.getOrDefault(mExport.getQueryName(), mExport.getQueryName());
+                String resolvedConnectorName = connectorNameToNewName.getOrDefault(mExport.getConnectorName(), mExport.getConnectorName());
+                
+                // US-7: Find the dbType for this connector in the export package
+                String dbType = data.getConnectors().stream()
+                    .filter(c -> c.getName().equals(mExport.getConnectorName()))
+                    .map(MigrationDto.ExportedConnectorDto::getType)
+                    .findFirst().orElse("H2");
+
+                mapping.setQueryName(resolvedQueryName);
+                mapping.setConnectorName(resolvedConnectorName);
+                mapping.setConnectorDbType(dbType);
+
+                mapping.setQueryId(queryNameToId.get(mExport.getQueryName()));
+                mapping.setConnectorId(connectorNameToId.get(mExport.getConnectorName()));
+
+                version.getMappings().add(mapping);
+            }
+
+            versionRepository.save(version);
+        }
+
+        return mapToDto(template);
     }
 
     private ReportTemplateDto mapToDto(ReportTemplate entity) {
@@ -336,6 +698,7 @@ public class ReportTemplateService {
         dto.setQueryName(mapping.getQueryName());
         dto.setConnectorId(mapping.getConnectorId());
         dto.setConnectorName(mapping.getConnectorName());
+        dto.setConnectorDbType(mapping.getConnectorDbType());
         dto.setJsonNodeName(mapping.getJsonNodeName());
         return dto;
     }

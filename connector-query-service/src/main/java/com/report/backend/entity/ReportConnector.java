@@ -24,6 +24,18 @@ public class ReportConnector {
     @Column(name = "jdbc_url", nullable = false, length = 500)
     private String jdbcUrl;
 
+    @Column(length = 255)
+    private String host;
+
+    @Column
+    private Integer port;
+
+    @Column(name = "db_name", length = 100)
+    private String dbName;
+
+    @Column(name = "use_raw_url")
+    private boolean useRawUrl;
+
     @Column(nullable = false, length = 100)
     private String username;
 

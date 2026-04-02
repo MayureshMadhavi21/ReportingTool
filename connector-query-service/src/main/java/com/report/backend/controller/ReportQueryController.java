@@ -40,6 +40,15 @@ public class ReportQueryController {
         return ResponseEntity.ok(service.getQueryById(id));
     }
 
+    @GetMapping("/search")
+    @Operation(summary = "Find a query by connector and name")
+    public ResponseEntity<ReportQueryDto> getQueryByName(
+            @RequestParam("connectorId") String connectorId,
+            @RequestParam("name") String name) {
+        ReportQueryDto dto = service.getQueryByConnectorAndName(connectorId, name);
+        return dto != null ? ResponseEntity.ok(dto) : ResponseEntity.notFound().build();
+    }
+
     @PostMapping
     @Operation(summary = "Register a new query")
     public ResponseEntity<ReportQueryDto> createQuery(@Valid @RequestBody ReportQueryDto dto) {
@@ -61,8 +70,8 @@ public class ReportQueryController {
     }
 
     @GetMapping("/{id}/placeholders")
-    @Operation(summary = "Get unique placeholders found in the query text")
-    public ResponseEntity<Set<String>> getPlaceholders(@PathVariable("id") String id) {
+    @Operation(summary = "Get unique placeholders found in the query text with their metadata")
+    public ResponseEntity<java.util.List<com.report.backend.dto.PlaceholderMetadataDto>> getPlaceholders(@PathVariable("id") String id) {
         return ResponseEntity.ok(service.getPlaceholders(id));
     }
 

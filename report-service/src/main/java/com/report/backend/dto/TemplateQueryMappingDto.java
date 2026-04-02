@@ -16,6 +16,7 @@ public class TemplateQueryMappingDto {
     
     private String connectorId;
     private String connectorName;
+    private String connectorDbType;
     
     @NotBlank(message = "JSON Node Name is mandatory")
     private String jsonNodeName;

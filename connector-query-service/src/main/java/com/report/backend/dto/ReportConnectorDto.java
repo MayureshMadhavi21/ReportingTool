@@ -15,6 +15,11 @@ public class ReportConnectorDto {
 
     @NotBlank(message = "JDBC URL is mandatory")
     private String jdbcUrl;
+    
+    private String host;
+    private Integer port;
+    private String dbName;
+    private boolean useRawUrl;
 
     @NotBlank(message = "Username is mandatory")
     private String username;

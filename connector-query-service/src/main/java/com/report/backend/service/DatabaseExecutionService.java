@@ -13,8 +13,48 @@ import java.util.regex.Pattern;
 public class DatabaseExecutionService {
 
     private static final Pattern PARAM_PATTERN = Pattern.compile(":(\\w+)");
+    private static final Map<String, String> DRIVER_MAP = new HashMap<>();
 
-    public List<Map<String, Object>> executeQuery(String queryName, String jdbcUrl, String username, String password, String queryText, Map<String, Object> params) {
+    static {
+        DRIVER_MAP.put("SQL_SERVER", "com.microsoft.sqlserver.jdbc.SQLServerDriver");
+        DRIVER_MAP.put("MYSQL", "com.mysql.cj.jdbc.Driver");
+        DRIVER_MAP.put("POSTGRESQL", "org.postgresql.Driver");
+        DRIVER_MAP.put("ORACLE", "oracle.jdbc.OracleDriver");
+        DRIVER_MAP.put("H2", "org.h2.Driver");
+    }
+
+    private void loadDriver(String dbType) {
+        if (dbType == null) return;
+        String driverClass = DRIVER_MAP.get(dbType.toUpperCase());
+        if (driverClass != null) {
+            try {
+                Class.forName(driverClass);
+            } catch (ClassNotFoundException e) {
+                // For H2 and MSSQL, they are usually in classpath so we proceed if Class.forName fails
+                // but for Oracle/MySQL specifically, we want a clear error if driver is missing
+                if ("ORACLE".equals(dbType.toUpperCase()) || "MYSQL".equals(dbType.toUpperCase()) || "POSTGRESQL".equals(dbType.toUpperCase())) {
+                    throw new RuntimeException("JDBC Driver for " + dbType + " not found: " + driverClass + ". Please ensure the dependency is in pom.xml and re-build.");
+                }
+            }
+        }
+    }
+
+    public List<Map<String, Object>> executeQuery(String queryName, String dbType, String jdbcUrl, String username, String password, String queryText, Map<String, Object> params, Map<String, com.report.backend.entity.PlaceholderMetadata> placeholderMetadata) {
+        loadDriver(dbType);
+        
+        // US-9: Strict Type Validation before execution
+        if (params != null && placeholderMetadata != null) {
+            for (Map.Entry<String, com.report.backend.entity.PlaceholderMetadata> entry : placeholderMetadata.entrySet()) {
+                String paramName = entry.getKey();
+                String expectedType = entry.getValue().getType();
+                Object value = params.get(paramName);
+                
+                if (value != null) {
+                    validateType(paramName, value, expectedType);
+                }
+            }
+        }
+
         List<Map<String, Object>> results = new ArrayList<>();
         
         List<String> paramOrder = new ArrayList<>();
@@ -57,5 +97,33 @@ public class DatabaseExecutionService {
         }
         
         return results;
+    }
+
+    private void validateType(String name, Object value, String type) {
+        if (type == null || "STRING".equalsIgnoreCase(type)) return;
+        
+        String valStr = value.toString();
+        try {
+            switch (type.toUpperCase()) {
+                case "NUMBER":
+                    Double.parseDouble(valStr);
+                    break;
+                case "DATE":
+                    // Simple check for YYYY-MM-DD or similar formats if it's a string
+                    if (value instanceof String) {
+                         if (!valStr.matches("\\d{4}-\\d{2}-\\d{2}.*")) {
+                             throw new RuntimeException("Format mismatch");
+                         }
+                    }
+                    break;
+                case "BOOLEAN":
+                    if (!valStr.equalsIgnoreCase("true") && !valStr.equalsIgnoreCase("false")) {
+                        throw new RuntimeException("Invalid boolean");
+                    }
+                    break;
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Invalid value for placeholder '" + name + "': Expected " + type + ", but received '" + valStr + "'.");
+        }
     }
 }

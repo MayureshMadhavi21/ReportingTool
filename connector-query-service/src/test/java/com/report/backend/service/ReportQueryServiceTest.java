@@ -11,9 +11,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.report.backend.dto.PlaceholderMetadataDto;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -61,11 +62,11 @@ class ReportQueryServiceTest {
     void testGetPlaceholders_FindsAll() {
         when(queryRepository.findById("1")).thenReturn(Optional.of(query));
 
-        Set<String> placeholders = service.getPlaceholders("1");
+        List<PlaceholderMetadataDto> placeholders = service.getPlaceholders("1");
 
         assertEquals(2, placeholders.size());
-        assertTrue(placeholders.contains("dept"));
-        assertTrue(placeholders.contains("status"));
+        assertTrue(placeholders.stream().anyMatch(p -> p.getName().equals("dept")));
+        assertTrue(placeholders.stream().anyMatch(p -> p.getName().equals("status")));
     }
 
     @Test
@@ -76,14 +77,16 @@ class ReportQueryServiceTest {
         Map<String, Object> params = Map.of("dept", "IT", "status", true);
         
         service.executeQuery("1", params);
-
+        
         verify(databaseExecutionService).executeQuery(
                 eq("GetEmployee"),
+                any(), // dbType
                 eq("jdbc:h2:mem:test"),
                 eq("sa"),
                 eq("secret"),
                 eq(query.getQueryText()),
-                eq(params)
+                eq(params),
+                anyMap() // placeholderTypes
         );
     }
 }

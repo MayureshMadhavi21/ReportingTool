@@ -33,6 +33,11 @@ public class ReportConnectorService {
                 .orElseThrow(() -> new RuntimeException("Connector not found"));
     }
 
+    @Transactional(readOnly = true)
+    public ReportConnectorDto getConnectorByName(String name) {
+        return repository.findByName(name).map(this::mapToDto).orElse(null);
+    }
+
     @Transactional
     public ReportConnectorDto createConnector(ReportConnectorDto dto) {
         // Step 1: Connectivity check before creating
@@ -42,6 +47,10 @@ public class ReportConnectorService {
         entity.setName(dto.getName());
         entity.setDbType(dto.getDbType());
         entity.setJdbcUrl(dto.getJdbcUrl());
+        entity.setHost(dto.getHost());
+        entity.setPort(dto.getPort());
+        entity.setDbName(dto.getDbName());
+        entity.setUseRawUrl(dto.isUseRawUrl());
         entity.setUsername(dto.getUsername());
         entity.setPasswordEncrypted("VAULT_RESTRICTED"); // Placeholder
         
@@ -63,10 +72,34 @@ public class ReportConnectorService {
             throw new RuntimeException("Password is required for connection test");
         }
 
+        loadDriverHelper(dto.getDbType());
+
         try (Connection conn = DriverManager.getConnection(dto.getJdbcUrl(), dto.getUsername(), password)) {
             // Success
         } catch (SQLException e) {
             throw new RuntimeException("Connection failed: " + e.getMessage());
+        }
+    }
+
+    private void loadDriverHelper(String dbType) {
+        if (dbType == null) return;
+        String driverClass = switch (dbType.toUpperCase()) {
+            case "SQL_SERVER" -> "com.microsoft.sqlserver.jdbc.SQLServerDriver";
+            case "MYSQL" -> "com.mysql.cj.jdbc.Driver";
+            case "POSTGRESQL" -> "org.postgresql.Driver";
+            case "ORACLE" -> "oracle.jdbc.OracleDriver";
+            case "H2" -> "org.h2.Driver";
+            default -> null;
+        };
+
+        if (driverClass != null) {
+            try {
+                Class.forName(driverClass);
+            } catch (ClassNotFoundException e) {
+                if ("ORACLE".equals(dbType.toUpperCase()) || "MYSQL".equals(dbType.toUpperCase()) || "POSTGRESQL".equals(dbType.toUpperCase())) {
+                    throw new RuntimeException("JDBC Driver for " + dbType + " not found. Please ensure it is in pom.xml.");
+                }
+            }
         }
     }
 
@@ -81,9 +114,13 @@ public class ReportConnectorService {
         String oldName = entity.getName();
         String newName = dto.getName();
 
-        entity.setName(newName);
+        entity.setName(dto.getName());
         entity.setDbType(dto.getDbType());
         entity.setJdbcUrl(dto.getJdbcUrl());
+        entity.setHost(dto.getHost());
+        entity.setPort(dto.getPort());
+        entity.setDbName(dto.getDbName());
+        entity.setUseRawUrl(dto.isUseRawUrl());
         entity.setUsername(dto.getUsername());
 
         // Update vault
@@ -134,6 +171,10 @@ public class ReportConnectorService {
         dto.setName(entity.getName());
         dto.setDbType(entity.getDbType());
         dto.setJdbcUrl(entity.getJdbcUrl());
+        dto.setHost(entity.getHost());
+        dto.setPort(entity.getPort());
+        dto.setDbName(entity.getDbName());
+        dto.setUseRawUrl(entity.isUseRawUrl());
         dto.setUsername(entity.getUsername());
         // Do not return password to frontend
         return dto;

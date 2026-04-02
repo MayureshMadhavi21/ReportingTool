@@ -13,7 +13,7 @@ export default function Generate() {
   const [selectedVersionId, setSelectedVersionId] = useState<string>('');
   const [format, setFormat] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [placeholders, setPlaceholders] = useState<string[]>([]);
+  const [placeholders, setPlaceholders] = useState<import('../types').PlaceholderMetadata[]>([]);
   const [params, setParams] = useState<Record<string, string>>({});
 
   // 1. Initial Load
@@ -61,7 +61,7 @@ export default function Generate() {
       reportApi.get(`/templates/versions/${selectedVersionId}/placeholders`)
         .then(res => {
           setPlaceholders(res.data);
-          const initialParams = res.data.reduce((acc: any, p: string) => ({ ...acc, [p]: '' }), {});
+          const initialParams = res.data.reduce((acc: any, p: import('../types').PlaceholderMetadata) => ({ ...acc, [p.name]: '' }), {});
           setParams(initialParams);
           
           // Set default format based on version file type
@@ -166,7 +166,7 @@ export default function Generate() {
                 fullWidth
                 loading={loading}
                 onClick={handleGenerate}
-                disabled={!selectedVersionId || (placeholders.some(p => !params[p]))}
+                disabled={!selectedVersionId || (placeholders.some(p => !params[p.name]))}
                 leftSection={<IconFileExport size={20} />}
               >
                 Assemble Report
@@ -180,7 +180,7 @@ export default function Generate() {
                 <Text fw={700}>Unified Parameters</Text>
                 <Badge variant="dot" color="blue">{placeholders.length} Target Keys</Badge>
               </Group>
-              <Text size="xs" c="dimmed">Values provided here will be dynamically injected into all mapped queries for this snapshot.</Text>
+              <Text size="xs" c="dimmed">Required data for dynamic injection into this snapshot.</Text>
               
               <Divider mb="sm" />
 
@@ -188,13 +188,21 @@ export default function Generate() {
                 <Stack gap="sm">
                   {placeholders.map(p => (
                     <TextInput
-                      key={p}
-                      label={p.charAt(0).toUpperCase() + p.slice(1)}
-                      placeholder={`Enter ${p}...`}
+                      key={p.name}
+                      label={p.name.charAt(0).toUpperCase() + p.name.slice(1)}
+                      description={p.description || null}
+                      placeholder={p.type === 'DATE' ? 'YYYY-MM-DD' : `Enter ${p.name}...`}
+                      type={p.type === 'DATE' ? 'date' : p.type === 'NUMBER' ? 'number' : 'text'}
                       size="sm"
-                      value={params[p] || ''}
-                      onChange={(e) => handleParamChange(p, e.currentTarget.value)}
+                      value={params[p.name] || ''}
+                      onChange={(e) => handleParamChange(p.name, e.currentTarget.value)}
                       required
+                      rightSection={
+                        <Badge size="xs" variant="light" color={p.type === 'STRING' ? 'blue' : p.type === 'NUMBER' ? 'orange' : 'teal'}>
+                          {p.type}
+                        </Badge>
+                      }
+                      rightSectionWidth={70}
                     />
                   ))}
                 </Stack>

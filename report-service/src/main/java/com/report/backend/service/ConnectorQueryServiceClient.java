@@ -1,6 +1,6 @@
 package com.report.backend.service;
 
-import lombok.RequiredArgsConstructor;
+import com.report.backend.dto.MigrationDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Slf4j
 @Service
@@ -17,7 +16,8 @@ public class ConnectorQueryServiceClient {
 
     private final RestClient restClient;
 
-    public ConnectorQueryServiceClient(@Value("${connector-query-service.url:http://localhost:8085}") String serviceUrl) {
+    public ConnectorQueryServiceClient(
+            @Value("${connector-query-service.url:http://localhost:8085}") String serviceUrl) {
         this.restClient = RestClient.builder()
                 .baseUrl(serviceUrl)
                 .build();
@@ -41,7 +41,8 @@ public class ConnectorQueryServiceClient {
             return restClient.get()
                     .uri("/api/queries/{id}", queryId)
                     .retrieve()
-                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {
+                    });
         } catch (Exception e) {
             log.error("Failed to fetch query details for {}: {}", queryId, e.getMessage());
             return null;
@@ -60,13 +61,125 @@ public class ConnectorQueryServiceClient {
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(params != null ? params : Map.of())
                 .retrieve()
-                .body(new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+                .body(new ParameterizedTypeReference<List<Map<String, Object>>>() {
+                });
     }
 
-    public Set<String> getPlaceholders(String queryId) {
+    public List<com.report.backend.dto.PlaceholderMetadataDto> getPlaceholders(String queryId) {
         return restClient.get()
                 .uri("/api/queries/{id}/placeholders", queryId)
                 .retrieve()
-                .body(new ParameterizedTypeReference<Set<String>>() {});
+                .body(new ParameterizedTypeReference<List<com.report.backend.dto.PlaceholderMetadataDto>>() {
+                });
+    }
+
+    // Migration Methods
+    public Map<String, Object> getConnectorByName(String name) {
+        try {
+            return restClient.get()
+                    .uri("/api/connectors/search?name={name}", name)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {
+                    });
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public Map<String, Object> getConnectorDetails(String connectorId) {
+        try {
+            return restClient.get()
+                    .uri("/api/connectors/{id}", connectorId)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {
+                    });
+        } catch (Exception e) {
+            log.error("Failed to fetch connector details for {}: {}", connectorId, e.getMessage());
+            return null;
+        }
+    }
+
+    public Map<String, Object> getQueryByName(String connectorId, String name) {
+        try {
+            return restClient.get()
+                    .uri("/api/queries/search?connectorId={connectorId}&name={name}", connectorId, name)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {
+                    });
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public Map<String, Object> createConnector(MigrationDto.ExportedConnectorDto dto, String name, String password) {
+        Map<String, Object> body = Map.of(
+                "name", name,
+                "dbType", dto.getType(),
+                "jdbcUrl", dto.getUrl(),
+                "host", dto.getHost() != null ? dto.getHost() : "",
+                "port", dto.getPort(),
+                "dbName", dto.getDbName() != null ? dto.getDbName() : "",
+                "useRawUrl", dto.isUseRawUrl(),
+                "username", dto.getUsername(),
+                "password", password);
+        return restClient.post()
+                .uri("/api/connectors")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(new ParameterizedTypeReference<Map<String, Object>>() {
+                });
+    }
+
+    public Map<String, Object> updateConnector(String id, MigrationDto.ExportedConnectorDto dto, String name,
+            String password) {
+        Map<String, Object> body = Map.of(
+                "name", name,
+                "dbType", dto.getType(),
+                "jdbcUrl", dto.getUrl(),
+                "host", dto.getHost() != null ? dto.getHost() : "",
+                "port", dto.getPort(),
+                "dbName", dto.getDbName() != null ? dto.getDbName() : "",
+                "useRawUrl", dto.isUseRawUrl(),
+                "username", dto.getUsername(),
+                "password", password != null ? password : "");
+        return restClient.put()
+                .uri("/api/connectors/{id}", id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(new ParameterizedTypeReference<Map<String, Object>>() {
+                });
+    }
+
+    public Map<String, Object> createQuery(MigrationDto.ExportedQueryDto dto, String connectorId, String name) {
+        Map<String, Object> body = Map.of(
+                "connectorId", connectorId,
+                "name", name,
+                "queryText", dto.getQueryText(),
+                "description", "Imported via migration");
+        return restClient.post()
+                .uri("/api/queries")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(new ParameterizedTypeReference<Map<String, Object>>() {
+                });
+    }
+
+    public Map<String, Object> updateQuery(String id, MigrationDto.ExportedQueryDto dto, String connectorId,
+            String name) {
+        Map<String, Object> body = Map.of(
+                "connectorId", connectorId,
+                "name", name,
+                "queryText", dto.getQueryText(),
+                "description", "Updated via migration");
+        return restClient.put()
+                .uri("/api/queries/{id}", id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(new ParameterizedTypeReference<Map<String, Object>>() {
+                });
     }
 }

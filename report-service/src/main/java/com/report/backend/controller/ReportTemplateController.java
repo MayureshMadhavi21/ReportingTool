@@ -1,5 +1,6 @@
 package com.report.backend.controller;
 
+import com.report.backend.dto.PlaceholderMetadataDto;
 import com.report.backend.dto.ReportTemplateDto;
 import com.report.backend.dto.TemplateQueryMappingDto;
 import com.report.backend.service.ReportTemplateService;
@@ -14,7 +15,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 
 @RestController
 @RequestMapping("/api/templates")
@@ -39,13 +39,13 @@ public class ReportTemplateController {
 
     @GetMapping("/{id}/placeholders")
     @Operation(summary = "Get all combined placeholders for all queries in a template (latest version)")
-    public ResponseEntity<Set<String>> getPlaceholders(@PathVariable("id") String id) {
+    public ResponseEntity<List<PlaceholderMetadataDto>> getPlaceholders(@PathVariable("id") String id) {
         return ResponseEntity.ok(service.getPlaceholdersForTemplate(id));
     }
 
     @GetMapping("/versions/{versionId}/placeholders")
     @Operation(summary = "Get all combined placeholders for a specific version")
-    public ResponseEntity<Set<String>> getVersionPlaceholders(@PathVariable("versionId") String versionId) {
+    public ResponseEntity<List<PlaceholderMetadataDto>> getVersionPlaceholders(@PathVariable("versionId") String versionId) {
         return ResponseEntity.ok(service.getPlaceholdersForVersion(versionId));
     }
 

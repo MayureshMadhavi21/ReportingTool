@@ -29,6 +29,11 @@ public class ReportQuery {
     @Column(length = 500)
     private String description;
 
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "Report_Query_Placeholder_Metadata", joinColumns = @JoinColumn(name = "query_id"))
+    @MapKeyColumn(name = "placeholder_name")
+    private java.util.Map<String, PlaceholderMetadata> placeholderMetadata = new java.util.HashMap<>();
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
