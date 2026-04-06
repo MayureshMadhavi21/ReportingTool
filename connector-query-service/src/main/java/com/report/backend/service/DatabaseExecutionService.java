@@ -24,38 +24,46 @@ public class DatabaseExecutionService {
     }
 
     private void loadDriver(String dbType) {
-        if (dbType == null) return;
+        if (dbType == null)
+            return;
         String driverClass = DRIVER_MAP.get(dbType.toUpperCase());
         if (driverClass != null) {
             try {
                 Class.forName(driverClass);
             } catch (ClassNotFoundException e) {
-                // For H2 and MSSQL, they are usually in classpath so we proceed if Class.forName fails
+                // For H2 and MSSQL, they are usually in classpath so we proceed if
+                // Class.forName fails
                 // but for Oracle/MySQL specifically, we want a clear error if driver is missing
-                if ("ORACLE".equals(dbType.toUpperCase()) || "MYSQL".equals(dbType.toUpperCase()) || "POSTGRESQL".equals(dbType.toUpperCase())) {
-                    throw new RuntimeException("JDBC Driver for " + dbType + " not found: " + driverClass + ". Please ensure the dependency is in pom.xml and re-build.");
+                if ("ORACLE".equals(dbType.toUpperCase()) || "MYSQL".equals(dbType.toUpperCase())
+                        || "POSTGRESQL".equals(dbType.toUpperCase())) {
+                    throw new RuntimeException("JDBC Driver for " + dbType + " not found: " + driverClass
+                            + ". Please ensure the dependency is in pom.xml and re-build.");
                 }
             }
         }
     }
 
-    public List<Map<String, Object>> executeQuery(String queryName, String dbType, String jdbcUrl, String username, String password, String queryText, Map<String, Object> params, Map<String, com.report.backend.entity.PlaceholderMetadata> placeholderMetadata) {
+    public List<Map<String, Object>> executeQuery(String queryName, String dbType, String jdbcUrl, String username,
+            String password, String queryText, Map<String, Object> params,
+            Map<String, com.report.backend.entity.PlaceholderMetadata> placeholderMetadata) {
         loadDriver(dbType);
-        
+
         // US-6: SQL Injection & Security Check
-        // PreparedStatement inherently protects against SQL injection. As defense-in-depth, we also block destructive operations.
+        // PreparedStatement inherently protects against SQL injection. As
+        // defense-in-depth, we also block destructive operations.
         String upperQuery = queryText.toUpperCase();
         if (upperQuery.matches(".*\\b(INSERT|UPDATE|DELETE|DROP|TRUNCATE|ALTER|GRANT|REVOKE|EXEC|EXECUTE)\\b.*")) {
             throw new RuntimeException("Security Violation: Only read statements (SELECT) are permitted.");
         }
-        
+
         // US-9: Strict Type Validation before execution
         if (params != null && placeholderMetadata != null) {
-            for (Map.Entry<String, com.report.backend.entity.PlaceholderMetadata> entry : placeholderMetadata.entrySet()) {
+            for (Map.Entry<String, com.report.backend.entity.PlaceholderMetadata> entry : placeholderMetadata
+                    .entrySet()) {
                 String paramName = entry.getKey();
                 String expectedType = entry.getValue().getType();
                 Object value = params.get(paramName);
-                
+
                 if (value != null) {
                     validateType(paramName, value, expectedType);
                 }
@@ -63,7 +71,7 @@ public class DatabaseExecutionService {
         }
 
         List<Map<String, Object>> results = new ArrayList<>();
-        
+
         List<String> paramOrder = new ArrayList<>();
         Matcher matcher = PARAM_PATTERN.matcher(queryText);
         StringBuilder parsedQuery = new StringBuilder();
@@ -92,7 +100,7 @@ public class DatabaseExecutionService {
                 try (ResultSet rs = stmt.executeQuery()) {
                     ResultSetMetaData metaData = rs.getMetaData();
                     int columnCount = metaData.getColumnCount();
-                    
+
                     while (rs.next()) {
                         Map<String, Object> row = new LinkedHashMap<>();
                         for (int i = 1; i <= columnCount; i++) {
@@ -107,7 +115,7 @@ public class DatabaseExecutionService {
         } catch (SQLException e) {
             throw new RuntimeException("Failed to execute query: " + queryName + ". Error: " + e.getMessage(), e);
         }
-        
+
         return results;
     }
 
@@ -121,14 +129,11 @@ public class DatabaseExecutionService {
         // US-6: SQL Injection & Security Check
         String upperQuery = queryText.toUpperCase().trim();
         if (upperQuery.matches(".*\\b(INSERT|UPDATE|DELETE|DROP|TRUNCATE|ALTER|GRANT|REVOKE|EXEC|EXECUTE)\\b.*")) {
-            throw new RuntimeException("Security Violation: Only read statements (SELECT) are permitted. Destructive keywords found.");
+            throw new RuntimeException(
+                    "Security Violation: Only read statements (SELECT) are permitted. Destructive keywords found.");
         }
 
-        // Basic sanity check for SELECT statements to ensure they have a FROM clause.
-        // We use a regex to handle newlines, tabs, and multiple spaces.
-        if (upperQuery.startsWith("SELECT") && !upperQuery.matches("(?s)SELECT.*\\bFROM\\b.*")) {
-             throw new RuntimeException("SQL Syntax Validation Failed: 'SELECT' statement must include 'FROM' clause.");
-        }
+        // Let the actual database driver validate the query structure in the next step.
 
         Matcher matcher = PARAM_PATTERN.matcher(queryText);
         StringBuilder parsedQuery = new StringBuilder();
@@ -141,9 +146,12 @@ public class DatabaseExecutionService {
         parsedQuery.append(queryText.substring(lastEnd));
 
         try (Connection conn = DriverManager.getConnection(jdbcUrl, username, password)) {
-            // Preparing the statement asks the database engine to parse and compile the SQL.
-            // Some drivers (like H2, SQL Server, Postgres) are "lazy" and don't fully validate until execution.
-            // Calling getMetaData() forces a deeper dry-run check without actually running the query.
+            // Preparing the statement asks the database engine to parse and compile the
+            // SQL.
+            // Some drivers (like H2, SQL Server, Postgres) are "lazy" and don't fully
+            // validate until execution.
+            // Calling getMetaData() forces a deeper dry-run check without actually running
+            // the query.
             try (PreparedStatement stmt = conn.prepareStatement(parsedQuery.toString())) {
                 stmt.getMetaData();
             }
@@ -153,8 +161,9 @@ public class DatabaseExecutionService {
     }
 
     private void validateType(String name, Object value, String type) {
-        if (type == null || "STRING".equalsIgnoreCase(type)) return;
-        
+        if (type == null || "STRING".equalsIgnoreCase(type))
+            return;
+
         String valStr = value.toString();
         try {
             switch (type.toUpperCase()) {
@@ -164,9 +173,9 @@ public class DatabaseExecutionService {
                 case "DATE":
                     // Simple check for YYYY-MM-DD or similar formats if it's a string
                     if (value instanceof String) {
-                         if (!valStr.matches("\\d{4}-\\d{2}-\\d{2}.*")) {
-                             throw new RuntimeException("Format mismatch");
-                         }
+                        if (!valStr.matches("\\d{4}-\\d{2}-\\d{2}.*")) {
+                            throw new RuntimeException("Format mismatch");
+                        }
                     }
                     break;
                 case "BOOLEAN":
@@ -176,7 +185,8 @@ public class DatabaseExecutionService {
                     break;
             }
         } catch (Exception e) {
-            throw new RuntimeException("Invalid value for placeholder '" + name + "': Expected " + type + ", but received '" + valStr + "'.");
+            throw new RuntimeException("Invalid value for placeholder '" + name + "': Expected " + type
+                    + ", but received '" + valStr + "'.");
         }
     }
 }
