@@ -1,7 +1,9 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import MainLayout from './components/MainLayout';
 import Connectors from './pages/Connectors';
+import ConnectorEditor from './pages/ConnectorEditor';
 import Queries from './pages/Queries';
+import QueryEditor from './pages/QueryEditor';
 import Templates from './pages/Templates';
 import TemplateDetails from './pages/TemplateDetails';
 import Generate from './pages/Generate';
@@ -15,7 +17,14 @@ function App() {
         <Route path="/" element={<MainLayout />}>
           <Route index element={<Dashboard />} />
           <Route path="connectors" element={<Connectors />} />
+          <Route path="connectors/add" element={<ConnectorEditor />} />
+          <Route path="connectors/:id/edit" element={<ConnectorEditor editMode={true} />} />
+          <Route path="connectors/:id/view" element={<ConnectorEditor viewOnly={true} />} />
+          
           <Route path="queries" element={<Queries />} />
+          <Route path="queries/add" element={<QueryEditor />} />
+          <Route path="queries/:id/edit" element={<QueryEditor editMode={true} />} />
+          <Route path="queries/:id/view" element={<QueryEditor viewOnly={true} />} />
           <Route path="templates" element={<Templates />} />
           
           {/* Main Template Actions */}

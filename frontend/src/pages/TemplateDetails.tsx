@@ -207,7 +207,7 @@ export default function TemplateDetails({
                <Text size="xl" fw={800}>{title}</Text>
                <Badge variant="light" color={badgeColor}>{badgeText}</Badge>
              </Group>
-             <Text size="sm" c="dimmed">{template.description}</Text>
+             <Text size="sm" fw={500}>{template.description}</Text>
           </div>
         </Group>
         <Group>
@@ -238,7 +238,7 @@ export default function TemplateDetails({
                    <Table.Td><Text fw={700}>v{v.versionNumber}</Text></Table.Td>
                    <Table.Td><Text size="sm">{new Date(v.createdAt).toLocaleDateString()}</Text></Table.Td>
                    <Table.Td><Text size="sm">{v.createdBy || 'System'}</Text></Table.Td>
-                   <Table.Td>{v.isActive === 1 ? <Badge color="green">Active</Badge> : <Badge color="gray" variant="light">Archived</Badge>}</Table.Td>
+                   <Table.Td>{v.isActive === 1 ? <Badge color="green">Active</Badge> : <Badge color="gray" variant="filled">Archived</Badge>}</Table.Td>
                    <Table.Td><Center><Group gap="lg">
                     <Tooltip label="View Details"><ActionIcon variant="subtle" color="blue" onClick={() => navigate(`/templates/${id}/versions/${v.id}/view`)}><IconEye size={18} /></ActionIcon></Tooltip>
                     {v.isActive === 1 && <Tooltip label="Edit"><ActionIcon variant="subtle" color="orange" onClick={() => navigate(`/templates/${id}/versions/${v.id}/edit`)}><IconPencil size={18} /></ActionIcon></Tooltip>}

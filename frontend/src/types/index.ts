@@ -66,7 +66,7 @@ export interface ExportedConnector {
 
 export interface ExportedQuery {
   name: string;
-  query_text: string;
+  queryText: string;
   connectorName: string;
   placeholderMetadata: PlaceholderMetadata[];
 }

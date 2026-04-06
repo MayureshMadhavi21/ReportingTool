@@ -23,7 +23,6 @@ class VaultServiceTest {
         testFilePath = "data/test-vault-" + UUID.randomUUID() + ".json";
         
         vaultService = new VaultService("test-secret-key-12345", testFilePath);
-        ReflectionTestUtils.invokeMethod(vaultService, "init");
     }
 
     @AfterEach
@@ -51,7 +50,7 @@ class VaultServiceTest {
         assertNotNull(vaultService.getPassword(connectorName));
         
         vaultService.deletePassword(connectorName);
-        assertNull(vaultService.getPassword(connectorName));
+        assertThrows(RuntimeException.class, () -> vaultService.getPassword(connectorName));
     }
 
     @Test
@@ -62,7 +61,6 @@ class VaultServiceTest {
 
         // Simulate service restart by creating a new instance
         VaultService newVaultInstance = new VaultService("test-secret-key-12345", testFilePath);
-        ReflectionTestUtils.invokeMethod(newVaultInstance, "init");
 
         String retrieved = newVaultInstance.getPassword(connectorName);
         assertEquals(plaintext, retrieved);

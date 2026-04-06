@@ -142,6 +142,22 @@ public class ReportQueryService {
     }
 
     @Transactional(readOnly = true)
+    public void validateQuerySyntax(ReportQueryDto dto) {
+        ReportConnector connector = connectorRepository.findById(dto.getConnectorId())
+                .orElseThrow(() -> new RuntimeException("Connector not found"));
+        
+        String password = vaultService.getPassword(connector.getName());
+        
+        databaseExecutionService.validateQuery(
+                connector.getDbType(),
+                connector.getJdbcUrl(),
+                connector.getUsername(),
+                password,
+                dto.getQueryText()
+        );
+    }
+
+    @Transactional(readOnly = true)
     public List<PlaceholderMetadataDto> getPlaceholders(String id) {
         ReportQuery query = queryRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Query not found"));

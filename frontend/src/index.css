@@ -6,3 +6,44 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
   background-color: #f8f9fa;
 }
+
+/* Fix for disabled/readonly inputs readability */
+input:disabled, 
+textarea:disabled,
+select:disabled,
+.mantine-Input-input:disabled,
+.mantine-Input-input[data-disabled] {
+  color: #000000 !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #000000 !important;
+  background-color: #f1f3f5 !important; /* Slightly darker than white to indicate non-editable but still readable */
+  cursor: default !important;
+}
+
+.mantine-Text-root[data-dimmed],
+.mantine-Text-root.dimmed {
+  color: #343a40 !important; /* Even darker for better compliance */
+  opacity: 1 !important;
+}
+
+/* Fix for disabled Switch specifically */
+.mantine-Switch-label[data-disabled] {
+  color: #212529 !important;
+  opacity: 1 !important;
+}
+
+.mantine-Switch-track[data-disabled] {
+  background-color: #dee2e6 !important;
+  border-color: #adb5bd !important;
+  opacity: 1 !important;
+}
+
+.mantine-Switch-thumb[data-disabled] {
+  background-color: #f8f9fa !important;
+}
+
+/* Fix for Divider Labels */
+.mantine-Divider-label {
+  color: #495057 !important;
+  font-weight: 600;
+}

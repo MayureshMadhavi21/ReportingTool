@@ -360,13 +360,27 @@ public class ReportTemplateService {
             }
             queryMap.put(q.getName(), qa);
 
-            // Build impact: which template versions (from export) reference this query
+            // Build impact: which LIVE template versions reference this existing query
             List<String> affectedTemplateVersions = new ArrayList<>();
-            for (MigrationDto.ExportedVersionDto v : data.getVersions()) {
-                boolean used = v.getMappings().stream()
-                        .anyMatch(m -> q.getName().equals(m.getQueryName()));
-                if (used) {
-                    affectedTemplateVersions.add("v" + v.getVersionNumber() + " of '" + data.getTemplateName() + "'");
+            if (qa.isExists() && qa.getExistingId() != null) {
+                List<TemplateQueryMapping> liveMappings = mappingRepository.findByQueryId(qa.getExistingId());
+                for (TemplateQueryMapping m : liveMappings) {
+                    ReportTemplateVersion tv = m.getTemplateVersion();
+                    if (tv != null && tv.getTemplate() != null) {
+                        String impactStr = "v" + tv.getVersionNumber() + " of '" + tv.getTemplate().getName() + "'";
+                        if (!affectedTemplateVersions.contains(impactStr)) {
+                            affectedTemplateVersions.add(impactStr);
+                        }
+                    }
+                }
+            } else {
+                // If it doesn't exist live, we can show export impacts
+                for (MigrationDto.ExportedVersionDto v : data.getVersions()) {
+                    boolean used = v.getMappings().stream()
+                            .anyMatch(m -> q.getName().equals(m.getQueryName()));
+                    if (used) {
+                        affectedTemplateVersions.add("v" + v.getVersionNumber() + " of '" + data.getTemplateName() + "' (in export)");
+                    }
                 }
             }
             queryImpactMap.put(q.getName(), affectedTemplateVersions);

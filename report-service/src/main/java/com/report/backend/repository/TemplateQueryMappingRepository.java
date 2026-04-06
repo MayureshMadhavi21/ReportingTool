@@ -10,4 +10,5 @@ import java.util.List;
 public interface TemplateQueryMappingRepository extends JpaRepository<TemplateQueryMapping, String> {
     List<TemplateQueryMapping> findByTemplateVersionId(String templateVersionId);
     boolean existsByQueryId(String queryId);
+    List<TemplateQueryMapping> findByQueryId(String queryId);
 }

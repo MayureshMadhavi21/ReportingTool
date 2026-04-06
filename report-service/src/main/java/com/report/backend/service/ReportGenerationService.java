@@ -85,11 +85,7 @@ public class ReportGenerationService {
         String jsonDataSource;
         try {
             jsonDataSource = objectMapper.writeValueAsString(consolidatedData);
-            // Print to console for debugging
-            System.out.println("\n==================================================");
-            System.out.println("[DEBUG] GENERATED REPORT JSON:");
-            System.out.println(jsonDataSource);
-            System.out.println("==================================================\n");
+            log.debug("GENERATED REPORT JSON:\n{}", jsonDataSource);
             log.info("Consolidated JSON generated.");
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Failed to serialize data to JSON", e);

@@ -61,6 +61,13 @@ public class ReportQueryController {
         return ResponseEntity.ok(service.updateQuery(id, dto));
     }
 
+    @PostMapping("/validate")
+    @Operation(summary = "Validate SQL query syntax against connector")
+    public ResponseEntity<Void> validateQuery(@Valid @RequestBody ReportQueryDto dto) {
+        service.validateQuerySyntax(dto);
+        return ResponseEntity.ok().build();
+    }
+
     @PostMapping("/{id}/execute")
     @Operation(summary = "Execute a query and get results")
     public ResponseEntity<List<Map<String, Object>>> executeQuery(

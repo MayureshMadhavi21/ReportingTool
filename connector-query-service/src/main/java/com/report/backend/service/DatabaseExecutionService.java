@@ -42,6 +42,13 @@ public class DatabaseExecutionService {
     public List<Map<String, Object>> executeQuery(String queryName, String dbType, String jdbcUrl, String username, String password, String queryText, Map<String, Object> params, Map<String, com.report.backend.entity.PlaceholderMetadata> placeholderMetadata) {
         loadDriver(dbType);
         
+        // US-6: SQL Injection & Security Check
+        // PreparedStatement inherently protects against SQL injection. As defense-in-depth, we also block destructive operations.
+        String upperQuery = queryText.toUpperCase();
+        if (upperQuery.matches(".*\\b(INSERT|UPDATE|DELETE|DROP|TRUNCATE|ALTER|GRANT|REVOKE|EXEC|EXECUTE)\\b.*")) {
+            throw new RuntimeException("Security Violation: Only read statements (SELECT) are permitted.");
+        }
+        
         // US-9: Strict Type Validation before execution
         if (params != null && placeholderMetadata != null) {
             for (Map.Entry<String, com.report.backend.entity.PlaceholderMetadata> entry : placeholderMetadata.entrySet()) {
@@ -69,27 +76,32 @@ public class DatabaseExecutionService {
         }
         parsedQuery.append(queryText.substring(lastEnd));
 
-        try (Connection conn = DriverManager.getConnection(jdbcUrl, username, password);
-             PreparedStatement stmt = conn.prepareStatement(parsedQuery.toString())) {
-            
-            for (int i = 0; i < paramOrder.size(); i++) {
-                String paramName = paramOrder.get(i);
-                Object value = params != null ? params.get(paramName) : null;
-                stmt.setObject(i + 1, value);
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, username, password)) {
+            try {
+                conn.setReadOnly(true); // US-6: Enforce read-only connection
+            } catch (Exception ignored) {
+                // Ignore if the driver does not support read-only mode
             }
+            try (PreparedStatement stmt = conn.prepareStatement(parsedQuery.toString())) {
+                for (int i = 0; i < paramOrder.size(); i++) {
+                    String paramName = paramOrder.get(i);
+                    Object value = params != null ? params.get(paramName) : null;
+                    stmt.setObject(i + 1, value);
+                }
 
-            try (ResultSet rs = stmt.executeQuery()) {
-                ResultSetMetaData metaData = rs.getMetaData();
-                int columnCount = metaData.getColumnCount();
-                
-                while (rs.next()) {
-                    Map<String, Object> row = new LinkedHashMap<>();
-                    for (int i = 1; i <= columnCount; i++) {
-                        String columnName = metaData.getColumnLabel(i);
-                        Object value = rs.getObject(i);
-                        row.put(columnName, value);
+                try (ResultSet rs = stmt.executeQuery()) {
+                    ResultSetMetaData metaData = rs.getMetaData();
+                    int columnCount = metaData.getColumnCount();
+                    
+                    while (rs.next()) {
+                        Map<String, Object> row = new LinkedHashMap<>();
+                        for (int i = 1; i <= columnCount; i++) {
+                            String columnName = metaData.getColumnLabel(i);
+                            Object value = rs.getObject(i);
+                            row.put(columnName, value);
+                        }
+                        results.add(row);
                     }
-                    results.add(row);
                 }
             }
         } catch (SQLException e) {
@@ -97,6 +109,47 @@ public class DatabaseExecutionService {
         }
         
         return results;
+    }
+
+    public void validateQuery(String dbType, String jdbcUrl, String username, String password, String queryText) {
+        if (queryText == null || queryText.trim().isEmpty()) {
+            throw new RuntimeException("SQL Syntax Validation Failed: Query text cannot be empty.");
+        }
+
+        loadDriver(dbType);
+
+        // US-6: SQL Injection & Security Check
+        String upperQuery = queryText.toUpperCase().trim();
+        if (upperQuery.matches(".*\\b(INSERT|UPDATE|DELETE|DROP|TRUNCATE|ALTER|GRANT|REVOKE|EXEC|EXECUTE)\\b.*")) {
+            throw new RuntimeException("Security Violation: Only read statements (SELECT) are permitted. Destructive keywords found.");
+        }
+
+        // Basic sanity check for SELECT statements to ensure they have a FROM clause.
+        // We use a regex to handle newlines, tabs, and multiple spaces.
+        if (upperQuery.startsWith("SELECT") && !upperQuery.matches("(?s)SELECT.*\\bFROM\\b.*")) {
+             throw new RuntimeException("SQL Syntax Validation Failed: 'SELECT' statement must include 'FROM' clause.");
+        }
+
+        Matcher matcher = PARAM_PATTERN.matcher(queryText);
+        StringBuilder parsedQuery = new StringBuilder();
+        int lastEnd = 0;
+        while (matcher.find()) {
+            parsedQuery.append(queryText, lastEnd, matcher.start());
+            parsedQuery.append("?");
+            lastEnd = matcher.end();
+        }
+        parsedQuery.append(queryText.substring(lastEnd));
+
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, username, password)) {
+            // Preparing the statement asks the database engine to parse and compile the SQL.
+            // Some drivers (like H2, SQL Server, Postgres) are "lazy" and don't fully validate until execution.
+            // Calling getMetaData() forces a deeper dry-run check without actually running the query.
+            try (PreparedStatement stmt = conn.prepareStatement(parsedQuery.toString())) {
+                stmt.getMetaData();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("SQL Syntax Validation Failed: " + e.getMessage(), e);
+        }
     }
 
     private void validateType(String name, Object value, String type) {

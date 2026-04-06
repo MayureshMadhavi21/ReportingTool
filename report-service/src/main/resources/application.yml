@@ -12,6 +12,15 @@ spring:
       max-lifetime: 1200000
   profiles:
     active: h2  # Default to H2 for easy development
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: report-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
   servlet:
     multipart:
       max-file-size: 50MB

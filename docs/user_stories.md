@@ -1,0 +1,24 @@
+# Completed User Stories
+
+- `[x]` US-1 & US-2: View Details Modals for Connectors and Queries
+  - `[x]` Add View Connector UI
+  - `[x]` Add View Query UI
+- `[x]` US-3: Database Setup (SQL Server & Oracle)
+  - `[x]` Create docker-compose and local setup scripts
+- `[x]` US-4: Validate SQL Query Syntax Before Save
+  - `[x]` Backend validation endpoint
+  - `[x]` Frontend Validate button & Before Save hook
+- `[x]` US-5: Query Override Logic During JSON Import
+  - `[x]` Backend analysis adjustments for diffs
+  - `[x]` Frontend import diff viewer & impacted template list
+- `[x]` US-6: SQL Injection Security Handling
+  - `[x]` Review DatabaseExecutionService
+- `[x]` US-7: Unified Report Generation (Frontend & Kafka)
+  - `[x]` Configure Spring Kafka
+  - `[x]` Create Kafka Listener
+  - `[x]` Refactor centralized generation logic with version handling & datatype checks
+- `[x]` US-8: Sonar and Twistlock Findings
+  - `[x]` Resolve active code smells and static analysis warnings
+- `[x]` US-9: JUnit Tests & Jacoco Coverage
+  - `[x]` Add test cases for Connector Query Service
+  - `[x]` Add test cases for Report Service

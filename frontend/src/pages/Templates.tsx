@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Button, Table, Group, Text, ActionIcon, Modal,
   TextInput, Stack, FileInput, Textarea, Card, ThemeIcon, Tooltip, Center,
-  Stepper, Box, Divider, Alert, Badge, PasswordInput
+  Stepper, Box, Divider, Alert, Badge, PasswordInput, Select
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
@@ -264,25 +264,78 @@ export default function Templates() {
                   </Group>
                   <Text size="xs" c="dimmed">On connector: {q.connectorName}</Text>
                 </div>
-                <Badge color="green" variant="light" size="sm">Import As New</Badge>
+                {(!qa?.exists || q.strategy === 'CREATE_NEW') ? (
+                  <Badge color="green" variant="light" size="sm">Import As New</Badge>
+                ) : (
+                  <Badge color="orange" variant="light" size="sm">Override Existing</Badge>
+                )}
               </Group>
 
               {qa?.exists && (
-                <Alert icon={<IconAlertTriangle size={14} />} color="orange" variant="light" p="xs">
-                  A query named <strong>"{q.originalName}"</strong> already exists.
-                  This will be imported under the name below.
-                </Alert>
+                <Select
+                  size="xs"
+                  label="Import Strategy"
+                  data={[
+                    { value: 'CREATE_NEW', label: 'Import As New (Rename)' },
+                    { value: 'OVERRIDE', label: 'Override Existing Query' }
+                  ]}
+                  value={q.strategy}
+                  onChange={(v: any) => updateQuery(idx, { strategy: v as 'CREATE_NEW' | 'OVERRIDE' })}
+                />
               )}
 
-              <TextInput
-                size="xs"
-                label="Target Name"
-                description={qa?.exists ? 'Auto-renamed to avoid conflict — you can customise this' : 'Name that will be used in this environment'}
-                value={q.targetName}
-                onChange={e => updateQuery(idx, { targetName: e.target.value })}
-                error={!q.targetName?.trim() ? 'Name is required' : undefined}
-                rightSection={q.targetName?.trim() ? <IconCheck size={14} color="#2f9e44" /> : null}
-              />
+              {(!qa?.exists || q.strategy === 'CREATE_NEW') && (
+                <TextInput
+                  size="xs"
+                  label="Target Name"
+                  description={qa?.exists ? 'Auto-renamed to avoid conflict' : 'Name that will be used in this environment'}
+                  value={q.targetName}
+                  onChange={e => updateQuery(idx, { targetName: e.target.value })}
+                  error={!q.targetName?.trim() ? 'Name is required' : undefined}
+                  rightSection={q.targetName?.trim() ? <IconCheck size={14} color="#2f9e44" /> : null}
+                />
+              )}
+
+              {qa?.exists && q.strategy === 'OVERRIDE' && (
+                <Stack gap="xs" mt="sm">
+                  <Alert icon={<IconAlertTriangle size={14} />} color="orange" variant="light" p="xs">
+                    Overriding will update the SQL for the existing query <strong>"{q.originalName}"</strong>.
+                  </Alert>
+
+                  <Text size="xs" fw={700}>SQL Changes:</Text>
+                  <Group grow align="flex-start" gap="xs">
+                    <Textarea
+                      size="xs"
+                      label="Current (Live)"
+                      readOnly
+                      value={qa.currentQueryText || ''}
+                      minRows={3}
+                      maxRows={6}
+                      styles={{ input: { backgroundColor: '#fff5f5', color: '#c92a2a', fontFamily: 'monospace' } }}
+                    />
+                    <Textarea
+                      size="xs"
+                      label="Imported (New)"
+                      readOnly
+                      value={importJson?.queries.find((iq: any) => iq.name === q.originalName)?.queryText || ''}
+                      minRows={3}
+                      maxRows={6}
+                      styles={{ input: { backgroundColor: '#ebfbee', color: '#2b8a3e', fontFamily: 'monospace' } }}
+                    />
+                  </Group>
+
+                  {(analysis?.queryImpactMap?.[q.originalName]?.length ?? 0) > 0 && (
+                    <Box mt={4}>
+                      <Text size="xs" fw={700} mb={4}>Impacted Templates (will use new SQL logic):</Text>
+                      <Group gap={4}>
+                        {analysis?.queryImpactMap?.[q.originalName].map((tName, tIdx) => (
+                          <Badge key={tIdx} color="grape" variant="light" size="xs">{tName}</Badge>
+                        ))}
+                      </Group>
+                    </Box>
+                  )}
+                </Stack>
+              )}
             </Stack>
           </Card>
         );
@@ -291,7 +344,7 @@ export default function Templates() {
         <Button variant="default" onClick={() => setActiveStep(s => s - 1)}>Back</Button>
         <Button
           onClick={() => setActiveStep(s => s + 1)}
-          disabled={queryConfigs.some(q => !q.targetName?.trim())}>
+          disabled={queryConfigs.some(q => (!q.targetName?.trim() && q.strategy !== 'OVERRIDE'))}>
           Next: Template
         </Button>
       </Group>
@@ -379,7 +432,7 @@ export default function Templates() {
           >
             <Button
               color="green" loading={isImporting}
-              disabled={nameIsEmpty || isImporting || queryConfigs.some(q => !q.targetName?.trim()) || connectorConfigs.some(c => !c.targetName?.trim())}
+              disabled={nameIsEmpty || isImporting || queryConfigs.some(q => (!q.targetName?.trim() && q.strategy !== 'OVERRIDE')) || connectorConfigs.some(c => !c.targetName?.trim())}
               leftSection={<IconCheck size={16} />}
               onClick={handleExecuteImport}>
               Execute Import
