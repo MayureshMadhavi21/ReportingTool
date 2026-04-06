@@ -448,6 +448,7 @@ public class ReportTemplateService {
                     qExport.setName(qName);
                     qExport.setQueryText((String) queryDetails.get("queryText"));
                     qExport.setConnectorName(cName);
+                    qExport.setPlaceholderMetadata(connectorQueryServiceClient.getPlaceholders(mapping.getQueryId()));
                     queries.add(qExport);
                     processedQueryIds.add(mapping.getQueryId());
                 }
@@ -504,6 +505,13 @@ public class ReportTemplateService {
                         config.getPassword());
             } else { // CREATE_NEW
                 targetName = config.getTargetName();
+                // Pre-flight check: ensure targetName is not already taken
+                Map<String, Object> existing = connectorQueryServiceClient.getConnectorByName(targetName);
+                if (existing != null && existing.get("id") != null) {
+                    throw new RuntimeException(
+                        "Cannot create connector: a connector named '" + targetName + "' already exists in this environment. " +
+                        "Please choose a unique name in the Import Wizard.");
+                }
                 Map<String, Object> created = connectorQueryServiceClient.createConnector(exported,
                         targetName, config.getPassword());
                 targetId = (String) created.get("id");
@@ -551,31 +559,31 @@ public class ReportTemplateService {
                 targetId = (String) liveQuery.get("id");
 
             } else if ("OVERRIDE".equals(config.getStrategy())) {
-                // ... same override logic ...
-                if (connectorId == null) {
-                    Map<String, Object> liveConnector = connectorQueryServiceClient.getConnectorByName(exported.getConnectorName());
-                    if (liveConnector == null || liveConnector.get("id") == null) {
-                        throw new RuntimeException(
-                            "OVERRIDE strategy: connector '" + exported.getConnectorName() + "' does not exist " +
-                            "in the target environment. Cannot override query '" + config.getOriginalName() + "'.");
-                    }
-                    connectorId = (String) liveConnector.get("id");
+                // To override, we must find the query on an EXISTING connector in the target environment
+                // that matches the original connector name from the export.
+                Map<String, Object> liveConnector = connectorQueryServiceClient.getConnectorByName(exported.getConnectorName());
+                if (liveConnector == null || liveConnector.get("id") == null) {
+                    throw new RuntimeException(
+                        "OVERRIDE strategy: connector '" + exported.getConnectorName() + "' does not exist " +
+                        "in the target environment. Cannot locate target query for override.");
                 }
-                Map<String, Object> existing = connectorQueryServiceClient.getQueryByName(connectorId, config.getOriginalName());
+                String lookupConnectorId = (String) liveConnector.get("id");
+                Map<String, Object> existing = connectorQueryServiceClient.getQueryByName(lookupConnectorId, config.getOriginalName());
                 if (existing == null || existing.get("id") == null) {
                     throw new RuntimeException(
                         "OVERRIDE strategy: query '" + config.getOriginalName() + "' not found on connector '" +
                         exported.getConnectorName() + "' in the target environment.");
                 }
                 targetId = (String) existing.get("id");
+
+                // Update the query with new SQL and link it to the 'connectorId' resolved for this import (which might be new)
                 connectorQueryServiceClient.updateQuery(targetId, exported, connectorId, config.getOriginalName());
 
             } else { // CREATE_NEW
                 if (connectorId == null) {
                     throw new RuntimeException(
                         "Cannot create query '" + config.getTargetName() + "': connector '" +
-                        exported.getConnectorName() + "' was not resolved. " +
-                        "Ensure the connector is also being imported or already exists in the target.");
+                        exported.getConnectorName() + "' was not resolved.");
                 }
                 targetName = config.getTargetName();
                 Map<String, Object> created = connectorQueryServiceClient.createQuery(exported, connectorId,

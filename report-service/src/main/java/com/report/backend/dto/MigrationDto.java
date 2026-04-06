@@ -34,6 +34,7 @@ public class MigrationDto {
         private String name;
         private String queryText;
         private String connectorName; // Link by name for relocation
+        private List<PlaceholderMetadataDto> placeholderMetadata;
     }
 
     @Data

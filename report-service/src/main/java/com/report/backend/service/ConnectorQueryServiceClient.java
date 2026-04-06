@@ -157,7 +157,8 @@ public class ConnectorQueryServiceClient {
                 "connectorId", connectorId,
                 "name", name,
                 "queryText", dto.getQueryText(),
-                "description", "Imported via migration");
+                "description", "Imported via migration",
+                "placeholderMetadata", dto.getPlaceholderMetadata());
         return restClient.post()
                 .uri("/api/queries")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -173,7 +174,8 @@ public class ConnectorQueryServiceClient {
                 "connectorId", connectorId,
                 "name", name,
                 "queryText", dto.getQueryText(),
-                "description", "Updated via migration");
+                "description", "Updated via migration",
+                "placeholderMetadata", dto.getPlaceholderMetadata());
         return restClient.put()
                 .uri("/api/queries/{id}", id)
                 .contentType(MediaType.APPLICATION_JSON)

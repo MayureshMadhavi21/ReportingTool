@@ -360,7 +360,7 @@ export default function Templates() {
 
     const allActions = [
       ...connectorConfigs.map(c => ({ name: c.originalName, type: 'Connector', targetName: c.targetName })),
-      ...queryConfigs.map(q => ({ name: q.originalName, type: 'Query', targetName: q.targetName })),
+      ...queryConfigs.map(q => ({ name: q.originalName, type: 'Query', targetName: q.strategy === 'OVERRIDE' ? q.originalName : q.targetName })),
       { name: importJson?.templateName ?? '', type: 'Template', targetName: currentTargetName }
     ];
 
