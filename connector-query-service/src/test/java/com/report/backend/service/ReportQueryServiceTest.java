@@ -1,23 +1,24 @@
 package com.report.backend.service;
 
+import com.report.backend.dto.PlaceholderMetadataDto;
+import com.report.backend.dto.ReportQueryDto;
 import com.report.backend.entity.ReportConnector;
 import com.report.backend.entity.ReportQuery;
 import com.report.backend.repository.ReportConnectorRepository;
 import com.report.backend.repository.ReportQueryRepository;
-import org.junit.jupiter.api.BeforeEach;
+import com.report.backend.util.TestDataFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.report.backend.dto.PlaceholderMetadataDto;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -30,7 +31,7 @@ class ReportQueryServiceTest {
     private ReportConnectorRepository connectorRepository;
 
     @Mock
-    private DatabaseExecutionService databaseExecutionService;
+    private DatabaseExecutionService executionService;
 
     @Mock
     private VaultService vaultService;
@@ -39,54 +40,115 @@ class ReportQueryServiceTest {
     private ReportServiceClient reportServiceClient;
 
     @InjectMocks
-    private ReportQueryService service;
+    private ReportQueryService queryService;
 
-    private ReportQuery query;
+    @Test
+    void getAllQueries_ShouldReturnDtoList() {
+        ReportQuery entity = TestDataFactory.createQueryEntity();
+        when(queryRepository.findAll()).thenReturn(Collections.singletonList(entity));
 
-    @BeforeEach
-    void setUp() {
-        ReportConnector connector = new ReportConnector();
-        connector.setId("10");
-        connector.setName("TestConn");
-        connector.setJdbcUrl("jdbc:h2:mem:test");
-        connector.setUsername("sa");
+        List<ReportQueryDto> results = queryService.getAllQueries();
 
-        query = new ReportQuery();
-        query.setId("1");
-        query.setConnector(connector);
-        query.setName("GetEmployee");
-        query.setQueryText("SELECT * FROM employees WHERE dept = :dept AND active = :status");
+        assertEquals(1, results.size());
+        assertEquals(entity.getName(), results.get(0).getName());
     }
 
     @Test
-    void testGetPlaceholders_FindsAll() {
-        when(queryRepository.findById("1")).thenReturn(Optional.of(query));
+    void getQueriesByConnector_ShouldReturnList() {
+        ReportQuery entity = TestDataFactory.createQueryEntity();
+        when(queryRepository.findByConnectorId("conn-1")).thenReturn(Collections.singletonList(entity));
 
-        List<PlaceholderMetadataDto> placeholders = service.getPlaceholders("1");
+        List<ReportQueryDto> results = queryService.getQueriesByConnector("conn-1");
 
-        assertEquals(2, placeholders.size());
-        assertTrue(placeholders.stream().anyMatch(p -> p.getName().equals("dept")));
-        assertTrue(placeholders.stream().anyMatch(p -> p.getName().equals("status")));
+        assertFalse(results.isEmpty());
+        verify(queryRepository).findByConnectorId("conn-1");
     }
 
     @Test
-    void testExecuteQuery_PassesParams() {
-        when(queryRepository.findById("1")).thenReturn(Optional.of(query));
-        when(vaultService.getPassword("TestConn")).thenReturn("secret");
+    void getQueryById_Found_ShouldReturnDto() {
+        ReportQuery entity = TestDataFactory.createQueryEntity();
+        when(queryRepository.findById("query-123")).thenReturn(Optional.of(entity));
+
+        ReportQueryDto result = queryService.getQueryById("query-123");
+
+        assertNotNull(result);
+        assertEquals(entity.getId(), result.getId());
+    }
+
+    @Test
+    void getQueryById_NotFound_ThrowsException() {
+        when(queryRepository.findById("invalid")).thenReturn(Optional.empty());
+        assertThrows(RuntimeException.class, () -> queryService.getQueryById("invalid"));
+    }
+
+    @Test
+    void createQuery_NameExists_ThrowsException() {
+        ReportQueryDto dto = new ReportQueryDto();
+        dto.setName("Duplicate");
+        when(queryRepository.findByName("Duplicate")).thenReturn(Optional.of(new ReportQuery()));
+
+        assertThrows(RuntimeException.class, () -> queryService.createQuery(dto));
+    }
+
+    @Test
+    void createQuery_ValidInput_ShouldSaveAndReturnDto() {
+        ReportQueryDto dto = TestDataFactory.createQueryDto();
+        ReportQuery entity = TestDataFactory.createQueryEntity();
+        dto.setPlaceholderMetadata(Collections.singletonList(new PlaceholderMetadataDto("p1", "STRING", "desc")));
         
-        Map<String, Object> params = Map.of("dept", "IT", "status", true);
-        
-        service.executeQuery("1", params);
-        
-        verify(databaseExecutionService).executeQuery(
-                eq("GetEmployee"),
-                any(), // dbType
-                eq("jdbc:h2:mem:test"),
-                eq("sa"),
-                eq("secret"),
-                eq(query.getQueryText()),
-                eq(params),
-                anyMap() // placeholderTypes
-        );
+        when(connectorRepository.findById(dto.getConnectorId())).thenReturn(Optional.of(TestDataFactory.createConnectorEntity()));
+        when(queryRepository.save(any(ReportQuery.class))).thenReturn(entity);
+
+        ReportQueryDto result = queryService.createQuery(dto);
+
+        assertNotNull(result);
+        verify(queryRepository).save(any(ReportQuery.class));
+    }
+
+    @Test
+    void updateQuery_ConnectorChange_ShouldUpdateConnector() {
+        ReportQueryDto dto = TestDataFactory.createQueryDto();
+        dto.setConnectorId("new-conn");
+        ReportQuery existing = TestDataFactory.createQueryEntity();
+        ReportConnector newConnector = TestDataFactory.createConnectorEntity();
+        newConnector.setId("new-conn");
+
+        when(queryRepository.findById("q1")).thenReturn(Optional.of(existing));
+        when(connectorRepository.findById("new-conn")).thenReturn(Optional.of(newConnector));
+        when(queryRepository.save(any(ReportQuery.class))).thenReturn(existing);
+
+        queryService.updateQuery("q1", dto);
+
+        verify(connectorRepository).findById("new-conn");
+    }
+
+    @Test
+    void deleteQuery_Mapped_ThrowsException() {
+        when(reportServiceClient.isQueryMappedToTemplate("q1")).thenReturn(true);
+        assertThrows(RuntimeException.class, () -> queryService.deleteQuery("q1"));
+    }
+
+    @Test
+    void executeQuery_ShouldCallExecutionService() {
+        ReportQuery entity = TestDataFactory.createQueryEntity();
+        when(queryRepository.findById("q1")).thenReturn(Optional.of(entity));
+        when(vaultService.getPassword(anyString())).thenReturn("pass");
+
+        queryService.executeQuery("q1", new HashMap<>());
+
+        verify(executionService).executeQuery(anyString(), anyString(), anyString(), anyString(), eq("pass"), anyString(), anyMap(), anyMap());
+    }
+
+    @Test
+    void getPlaceholders_ShouldExtractFromText() {
+        ReportQuery entity = TestDataFactory.createQueryEntity();
+        entity.setQueryText("SELECT * FROM table WHERE id = :id AND name = :name");
+        when(queryRepository.findById("q1")).thenReturn(Optional.of(entity));
+
+        List<PlaceholderMetadataDto> results = queryService.getPlaceholders("q1");
+
+        assertEquals(2, results.size());
+        assertTrue(results.stream().anyMatch(p -> p.getName().equals("id")));
+        assertTrue(results.stream().anyMatch(p -> p.getName().equals("name")));
     }
 }

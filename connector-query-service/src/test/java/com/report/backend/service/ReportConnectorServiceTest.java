@@ -9,8 +9,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.util.Optional;
 import java.util.Collections;
 
@@ -56,60 +60,86 @@ class ReportConnectorServiceTest {
     }
 
     @Test
-    void testConnection_Success() {
-        // H2 mem should succeed in local environment
-        assertDoesNotThrow(() -> service.testConnection(dto));
+    void testConnection_Success() throws SQLException {
+        try (MockedStatic<DriverManager> driverManagerMock = mockStatic(DriverManager.class)) {
+            Connection conn = mock(Connection.class);
+            driverManagerMock.when(() -> DriverManager.getConnection(anyString(), anyString(), anyString()))
+                    .thenReturn(conn);
+
+            assertDoesNotThrow(() -> service.testConnection(dto));
+        }
     }
 
     @Test
-    void testConnection_Failure_InvalidUrl() {
-        dto.setJdbcUrl("jdbc:invalid:url");
-        assertThrows(RuntimeException.class, () -> service.testConnection(dto));
+    void testConnection_Failure_InvalidUrl() throws SQLException {
+        SQLException sqlException = new SQLException("Invalid URL");
+        try (MockedStatic<DriverManager> driverManagerMock = mockStatic(DriverManager.class)) {
+            driverManagerMock.when(() -> DriverManager.getConnection(anyString(), anyString(), anyString()))
+                    .thenThrow(sqlException);
+
+            assertThrows(RuntimeException.class, () -> service.testConnection(dto));
+        }
     }
 
     @Test
-    void testUpdateConnector_Success_WithNameChange() {
-        when(repository.findById(CONNECTOR_ID)).thenReturn(Optional.of(connector));
-        when(repository.save(any(ReportConnector.class))).thenAnswer(i -> i.getArguments()[0]);
-        // Mock the password retrieval for name migration
-        when(vaultService.getPassword("OldName")).thenReturn("password");
+    void testUpdateConnector_Success_WithNameChange() throws SQLException {
+        try (MockedStatic<DriverManager> driverManagerMock = mockStatic(DriverManager.class)) {
+            Connection conn = mock(Connection.class);
+            driverManagerMock.when(() -> DriverManager.getConnection(anyString(), anyString(), anyString()))
+                    .thenReturn(conn);
 
-        dto.setPassword(null); // Simulate only changing name
-        
-        ReportConnectorDto updated = service.updateConnector(CONNECTOR_ID, dto);
-        
-        assertEquals("NewName", updated.getName());
-        verify(vaultService).storePassword(eq("NewName"), eq("password"));
-        verify(vaultService).deletePassword("OldName");
+            when(repository.findById(CONNECTOR_ID)).thenReturn(Optional.of(connector));
+            when(repository.save(any(ReportConnector.class))).thenAnswer(i -> i.getArguments()[0]);
+            when(vaultService.getPassword("OldName")).thenReturn("password");
+
+            dto.setPassword(null); // Simulate only changing name
+            
+            ReportConnectorDto updated = service.updateConnector(CONNECTOR_ID, dto);
+            
+            assertEquals("NewName", updated.getName());
+            verify(vaultService).storePassword(eq("NewName"), eq("password"));
+            verify(vaultService).deletePassword("OldName");
+        }
     }
 
     @Test
-    void testUpdateConnector_Success_WithNewPassword() {
-        when(repository.findById(CONNECTOR_ID)).thenReturn(Optional.of(connector));
-        when(repository.save(any(ReportConnector.class))).thenAnswer(i -> i.getArguments()[0]);
+    void testUpdateConnector_Success_WithNewPassword() throws SQLException {
+        try (MockedStatic<DriverManager> driverManagerMock = mockStatic(DriverManager.class)) {
+            Connection conn = mock(Connection.class);
+            driverManagerMock.when(() -> DriverManager.getConnection(anyString(), anyString(), anyString()))
+                    .thenReturn(conn);
 
-        dto.setName("OldName");
-        dto.setPassword("new-secret");
-        
-        service.updateConnector(CONNECTOR_ID, dto);
-        
-        verify(vaultService).storePassword("OldName", "new-secret");
-        // No delete password if name is same
+            when(repository.findById(CONNECTOR_ID)).thenReturn(Optional.of(connector));
+            when(repository.save(any(ReportConnector.class))).thenAnswer(i -> i.getArguments()[0]);
+
+            dto.setName("OldName");
+            dto.setPassword("new-secret");
+            
+            service.updateConnector(CONNECTOR_ID, dto);
+            
+            verify(vaultService).storePassword("OldName", "new-secret");
+        }
     }
 
     @Test
-    void testCreateConnector_Success() {
-        when(repository.save(any())).thenAnswer(i -> {
-            ReportConnector saved = i.getArgument(0);
-            saved.setId("new-connector-uuid");
-            return saved;
-        });
+    void testCreateConnector_Success() throws SQLException {
+        try (MockedStatic<DriverManager> driverManagerMock = mockStatic(DriverManager.class)) {
+            Connection conn = mock(Connection.class);
+            driverManagerMock.when(() -> DriverManager.getConnection(anyString(), anyString(), anyString()))
+                    .thenReturn(conn);
 
-        ReportConnectorDto result = service.createConnector(dto);
-        
-        assertNotNull(result);
-        assertEquals("new-connector-uuid", result.getId());
-        verify(vaultService).storePassword(eq("NewName"), eq("password"));
+            when(repository.save(any())).thenAnswer(i -> {
+                ReportConnector saved = i.getArgument(0);
+                saved.setId("new-connector-uuid");
+                return saved;
+            });
+
+            ReportConnectorDto result = service.createConnector(dto);
+            
+            assertNotNull(result);
+            assertEquals("new-connector-uuid", result.getId());
+            verify(vaultService).storePassword(eq("NewName"), eq("password"));
+        }
     }
 
     @Test

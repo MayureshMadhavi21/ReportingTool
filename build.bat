@@ -5,12 +5,12 @@ echo ==================================
 
 echo --^> Building Report Service (Spring Boot)...
 cd report-service
-call mvn clean install -DskipTests
+call mvn clean install
 cd ..
 
 echo --^> Building Connector ^& Query Service (Spring Boot)...
 cd connector-query-service
-call mvn clean install -DskipTests
+call mvn clean install
 cd ..
 
 echo --^> Building Frontend (React/Vite)...

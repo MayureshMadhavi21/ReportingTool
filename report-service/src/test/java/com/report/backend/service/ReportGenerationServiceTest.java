@@ -1,24 +1,22 @@
 package com.report.backend.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.report.backend.dto.ReportTemplateDto;
 import com.report.backend.dto.ReportTemplateVersionDto;
 import com.report.backend.dto.TemplateQueryMappingDto;
-import org.junit.jupiter.api.BeforeEach;
+import com.report.backend.util.TestDataFactory;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.ArrayList;
+import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
 class ReportGenerationServiceTest {
 
     @Mock
@@ -29,78 +27,78 @@ class ReportGenerationServiceTest {
 
     @Mock
     private ReportTemplateService reportTemplateService;
-    
+
     @Mock
     private TemplateStorageStrategy templateStorageStrategy;
 
     @InjectMocks
     private ReportGenerationService reportGenerationService;
 
-    @BeforeEach
-    void setUp() {
-        MockitoAnnotations.openMocks(this);
+    @Test
+    void generateReport_Success_ShouldReturnBytes() throws Exception {
+        String templateId = "temp-123";
+        Map<String, Object> testParams = new HashMap<>();
+        
+        ReportTemplateDto template = TestDataFactory.createTemplateDto();
+        ReportTemplateVersionDto version = TestDataFactory.createVersionDto();
+        version.setIsActive(1);
+        TemplateQueryMappingDto mapping = TestDataFactory.createMappingDto();
+        version.setMappings(Collections.singletonList(mapping));
+        template.setVersions(Collections.singletonList(version));
+
+        when(reportTemplateService.getTemplateById(templateId)).thenReturn(template);
+        when(connectorQueryServiceClient.executeQuery(anyString(), anyMap()))
+                .thenReturn(Collections.singletonList(Map.of("data", "value")));
+        when(templateStorageStrategy.loadTemplate(anyString())).thenReturn("templateData".getBytes());
+        when(asposeProcessingService.processTemplate(any(), anyString(), anyString(), anyString()))
+                .thenReturn("pdfContent".getBytes());
+
+        byte[] result = reportGenerationService.generateReport(templateId, null, "PDF", testParams);
+
+        assertNotNull(result);
+        verify(asposeProcessingService).processTemplate(any(), contains("dataNode"), eq("DOCX"), eq("PDF"));
     }
 
     @Test
-    void testGenerateReport_Success() throws Exception {
-        String templateId = "template-uuid-001";
-        
-        // Mock template and versions
-        ReportTemplateDto template = new ReportTemplateDto();
-        template.setId(templateId);
-        template.setName("Test Template");
+    void generateReport_NoVersions_ThrowsException() {
+        ReportTemplateDto template = TestDataFactory.createTemplateDto();
+        template.setVersions(new ArrayList<>());
+        when(reportTemplateService.getTemplateById("t1")).thenReturn(template);
 
-        ReportTemplateVersionDto version = new ReportTemplateVersionDto();
-        version.setVersionNumber(1);
-        version.setStoragePath("path/to/template.docx");
-        
-        List<TemplateQueryMappingDto> mappings = new ArrayList<>();
-        
-        TemplateQueryMappingDto mapping1 = new TemplateQueryMappingDto();
-        mapping1.setJsonNodeName("users");
-        mapping1.setQueryId("query-uuid-101");
-        mapping1.setQueryName("Query1");
-        mappings.add(mapping1);
+        assertThrows(RuntimeException.class, () -> reportGenerationService.generateReport("t1", null, "PDF", null));
+    }
 
-        TemplateQueryMappingDto mapping2 = new TemplateQueryMappingDto();
-        mapping2.setJsonNodeName("sales");
-        mapping2.setQueryId("query-uuid-102");
-        mapping2.setQueryName("Query2");
-        mappings.add(mapping2);
+    @Test
+    void generateReport_SpecificVersion_ShouldUseIt() throws Exception {
+        ReportTemplateDto template = TestDataFactory.createTemplateDto();
+        ReportTemplateVersionDto v1 = TestDataFactory.createVersionDto();
+        v1.setVersionNumber(1);
+        ReportTemplateVersionDto v2 = TestDataFactory.createVersionDto();
+        v2.setVersionNumber(2);
+        template.setVersions(Arrays.asList(v1, v2));
 
-        version.setMappings(mappings);
-        template.setVersions(List.of(version));
+        when(reportTemplateService.getTemplateById("t1")).thenReturn(template);
+        when(templateStorageStrategy.loadTemplate(anyString())).thenReturn(new byte[0]);
+        when(asposeProcessingService.processTemplate(any(), anyString(), anyString(), anyString())).thenReturn(new byte[0]);
 
-        when(reportTemplateService.getTemplateById(templateId)).thenReturn(template);
-        
-        // Mock storage strategy
-        when(templateStorageStrategy.loadTemplate(anyString())).thenReturn(new byte[]{1, 2, 3});
+        reportGenerationService.generateReport("t1", 2, "PDF", new HashMap<>());
 
-        Map<String, Object> testParams = new HashMap<>();
-        testParams.put("p1", "v1");
+        verify(templateStorageStrategy).loadTemplate(v2.getStoragePath());
+    }
 
-        // Mock remote execution results
-        Map<String, Object> userRow = new HashMap<>();
-        userRow.put("id", 1);
-        userRow.put("name", "Alice");
-        when(connectorQueryServiceClient.executeQuery(eq("query-uuid-101"), anyMap()))
-                .thenReturn(List.of(userRow));
+    @Test
+    void generateReport_ExecutionError_ThrowsException() {
+        ReportTemplateDto template = TestDataFactory.createTemplateDto();
+        ReportTemplateVersionDto v1 = TestDataFactory.createVersionDto();
+        v1.setIsActive(1);
+        v1.setMappings(Collections.singletonList(TestDataFactory.createMappingDto()));
+        template.setVersions(Collections.singletonList(v1));
 
-        Map<String, Object> saleRow = new HashMap<>();
-        saleRow.put("amount", 100);
-        when(connectorQueryServiceClient.executeQuery(eq("query-uuid-102"), anyMap()))
-                .thenReturn(List.of(saleRow));
+        when(reportTemplateService.getTemplateById("t1")).thenReturn(template);
+        when(connectorQueryServiceClient.executeQuery(anyString(), anyMap())).thenThrow(new RuntimeException("API Down"));
 
-        // Mock Aspose Process
-        when(asposeProcessingService.processTemplate(any(byte[].class), anyString(), anyString(), eq("DOCX")))
-                .thenReturn(new byte[]{9, 8, 7}); 
-
-        // Execute (using null version to pick latest)
-        byte[] result = reportGenerationService.generateReport(templateId, null, "DOCX", testParams);
-
-        // Verify
-        assertNotNull(result);
-        verify(connectorQueryServiceClient, times(2)).executeQuery(anyString(), anyMap());
-        verify(asposeProcessingService, times(1)).processTemplate(any(byte[].class), anyString(), anyString(), eq("DOCX"));
+        // Parallel execution uses CompletableFuture.supplyAsync which wraps in CompletionException if join() is called
+        // In the code, it's join()ed and then future.get() is called inside a loop with catch blocks.
+        assertThrows(RuntimeException.class, () -> reportGenerationService.generateReport("t1", null, "PDF", null));
     }
 }

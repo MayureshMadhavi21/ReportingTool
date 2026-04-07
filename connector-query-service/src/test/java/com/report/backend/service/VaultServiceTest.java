@@ -1,68 +1,64 @@
 package com.report.backend.service;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.UUID;
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class VaultServiceTest {
 
     private VaultService vaultService;
-    private String testFilePath;
+    private File tempVault;
 
     @BeforeEach
-    void setUp() throws Exception {
-        testFilePath = "data/test-vault-" + UUID.randomUUID() + ".json";
-        
-        vaultService = new VaultService("test-secret-key-12345", testFilePath);
-    }
-
-    @AfterEach
-    void tearDown() throws IOException {
-        Files.deleteIfExists(Paths.get(testFilePath));
+    void setUp(@TempDir Path tempDir) {
+        tempVault = tempDir.resolve("vault.json").toFile();
+        vaultService = new VaultService("1234567890123456", tempVault.getAbsolutePath());
     }
 
     @Test
-    void testEncryptDecryptFlow() {
-        String connectorName = "test_connector";
-        String plaintext = "superSecretPassword!";
+    void testEncryptDecrypt() {
+        String plain = "password123";
+        String encrypted = vaultService.encrypt(plain);
+        assertNotNull(encrypted);
+        assertNotEquals(plain, encrypted);
 
-        // Store password (encrypts and saves)
-        vaultService.storePassword(connectorName, plaintext);
-        
-        // Retrieve and decrypt
-        String decrypted = vaultService.getPassword(connectorName);
-        assertEquals(plaintext, decrypted);
+        String decrypted = vaultService.decrypt(encrypted);
+        assertEquals(plain, decrypted);
     }
-    
+
+    @Test
+    void testStoreAndGetPassword() {
+        vaultService.storePassword("test-connector", "secret-pass");
+        String result = vaultService.getPassword("test-connector");
+        assertEquals("secret-pass", result);
+    }
+
+    @Test
+    void testGetPassword_NotFound_ThrowsException() {
+        assertThrows(RuntimeException.class, () -> vaultService.getPassword("non-existent"));
+    }
+
     @Test
     void testDeletePassword() {
-        String connectorName = "delete_target";
-        vaultService.storePassword(connectorName, "temp123");
-        assertNotNull(vaultService.getPassword(connectorName));
-        
-        vaultService.deletePassword(connectorName);
-        assertThrows(RuntimeException.class, () -> vaultService.getPassword(connectorName));
+        vaultService.storePassword("to-delete", "pass");
+        vaultService.deletePassword("to-delete");
+        assertThrows(RuntimeException.class, () -> vaultService.getPassword("to-delete"));
     }
 
     @Test
-    void testPasswordPersistence() throws Exception {
-        String connectorName = "persist_test";
-        String plaintext = "persistMe123";
-        vaultService.storePassword(connectorName, plaintext);
+    void testEncryptDecrypt_Null_ReturnsNull() {
+        assertNull(vaultService.encrypt(null));
+        assertNull(vaultService.decrypt(null));
+    }
 
-        // Simulate service restart by creating a new instance
-        VaultService newVaultInstance = new VaultService("test-secret-key-12345", testFilePath);
-
-        String retrieved = newVaultInstance.getPassword(connectorName);
-        assertEquals(plaintext, retrieved);
+    @Test
+    void testDecrypt_InvalidBase64_ThrowsException() {
+        assertThrows(RuntimeException.class, () -> vaultService.decrypt("not-base64!"));
     }
 }

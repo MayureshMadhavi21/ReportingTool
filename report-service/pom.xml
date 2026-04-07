@@ -151,6 +151,15 @@
             <goals>
               <goal>report</goal>
             </goals>
+            <configuration>
+              <excludes>
+                  <exclude>com/report/backend/dto/**</exclude>
+                  <exclude>com/report/backend/entity/**</exclude>
+                  <exclude>com/report/backend/repository/**</exclude>
+                  <exclude>com/report/backend/ReportServiceApplication.class</exclude>
+                  <exclude>com/report/backend/config/**</exclude>
+              </excludes>
+            </configuration>
           </execution>
         </executions>
       </plugin>
