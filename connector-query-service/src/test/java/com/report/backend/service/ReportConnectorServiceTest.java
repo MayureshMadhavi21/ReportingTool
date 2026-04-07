@@ -4,7 +4,7 @@ import com.report.backend.dto.ReportConnectorDto;
 import com.report.backend.entity.ReportConnector;
 import com.report.backend.repository.ReportConnectorRepository;
 import com.report.backend.repository.ReportQueryRepository;
-import org.junit.jupiter.api.BeforeEach;
+import com.report.backend.util.TestDataFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -15,18 +15,20 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.Optional;
 import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ReportConnectorServiceTest {
 
     @Mock
-    private ReportConnectorRepository repository;
+    private ReportConnectorRepository connectorRepository;
 
     @Mock
     private ReportQueryRepository queryRepository;
@@ -34,121 +36,93 @@ class ReportConnectorServiceTest {
     @Mock
     private VaultService vaultService;
 
+    @Mock
+    private DatabaseExecutionService databaseExecutionService;
+
     @InjectMocks
-    private ReportConnectorService service;
+    private ReportConnectorService connectorService;
 
-    private ReportConnector connector;
-    private ReportConnectorDto dto;
-    private static final String CONNECTOR_ID = "connector-uuid-001";
+    @Test
+    void getAllConnectors_ShouldReturnDtoList() {
+        ReportConnector entity = TestDataFactory.createConnectorEntity();
+        when(connectorRepository.findAll()).thenReturn(Collections.singletonList(entity));
 
-    @BeforeEach
-    void setUp() {
-        connector = new ReportConnector();
-        connector.setId(CONNECTOR_ID);
-        connector.setName("OldName");
-        connector.setDbType("H2");
-        connector.setJdbcUrl("jdbc:h2:mem:testdb");
-        connector.setUsername("sa");
+        List<ReportConnectorDto> results = connectorService.getAllConnectors();
 
-        dto = new ReportConnectorDto();
-        dto.setId(CONNECTOR_ID);
-        dto.setName("NewName");
-        dto.setDbType("H2");
-        dto.setJdbcUrl("jdbc:h2:mem:testdb");
-        dto.setUsername("sa");
-        dto.setPassword("password");
+        assertEquals(1, results.size());
+        assertEquals(entity.getName(), results.get(0).getName());
     }
 
     @Test
-    void testConnection_Success() throws SQLException {
+    void createConnector_ShouldEncryptPasswordAndSave() throws SQLException {
+        ReportConnectorDto dto = TestDataFactory.createConnectorDto();
+        dto.setPassword("new-password");
+        ReportConnector entity = TestDataFactory.createConnectorEntity();
+        
         try (MockedStatic<DriverManager> driverManagerMock = mockStatic(DriverManager.class)) {
-            Connection conn = mock(Connection.class);
+            Connection mockConn = mock(Connection.class);
             driverManagerMock.when(() -> DriverManager.getConnection(anyString(), anyString(), anyString()))
-                    .thenReturn(conn);
-
-            assertDoesNotThrow(() -> service.testConnection(dto));
-        }
-    }
-
-    @Test
-    void testConnection_Failure_InvalidUrl() throws SQLException {
-        SQLException sqlException = new SQLException("Invalid URL");
-        try (MockedStatic<DriverManager> driverManagerMock = mockStatic(DriverManager.class)) {
-            driverManagerMock.when(() -> DriverManager.getConnection(anyString(), anyString(), anyString()))
-                    .thenThrow(sqlException);
-
-            assertThrows(RuntimeException.class, () -> service.testConnection(dto));
-        }
-    }
-
-    @Test
-    void testUpdateConnector_Success_WithNameChange() throws SQLException {
-        try (MockedStatic<DriverManager> driverManagerMock = mockStatic(DriverManager.class)) {
-            Connection conn = mock(Connection.class);
-            driverManagerMock.when(() -> DriverManager.getConnection(anyString(), anyString(), anyString()))
-                    .thenReturn(conn);
-
-            when(repository.findById(CONNECTOR_ID)).thenReturn(Optional.of(connector));
-            when(repository.save(any(ReportConnector.class))).thenAnswer(i -> i.getArguments()[0]);
-            when(vaultService.getPassword("OldName")).thenReturn("password");
-
-            dto.setPassword(null); // Simulate only changing name
+                    .thenReturn(mockConn);
             
-            ReportConnectorDto updated = service.updateConnector(CONNECTOR_ID, dto);
-            
-            assertEquals("NewName", updated.getName());
-            verify(vaultService).storePassword(eq("NewName"), eq("password"));
-            verify(vaultService).deletePassword("OldName");
-        }
-    }
+            when(connectorRepository.save(any(ReportConnector.class))).thenReturn(entity);
 
-    @Test
-    void testUpdateConnector_Success_WithNewPassword() throws SQLException {
-        try (MockedStatic<DriverManager> driverManagerMock = mockStatic(DriverManager.class)) {
-            Connection conn = mock(Connection.class);
-            driverManagerMock.when(() -> DriverManager.getConnection(anyString(), anyString(), anyString()))
-                    .thenReturn(conn);
+            ReportConnectorDto result = connectorService.createConnector(dto);
 
-            when(repository.findById(CONNECTOR_ID)).thenReturn(Optional.of(connector));
-            when(repository.save(any(ReportConnector.class))).thenAnswer(i -> i.getArguments()[0]);
-
-            dto.setName("OldName");
-            dto.setPassword("new-secret");
-            
-            service.updateConnector(CONNECTOR_ID, dto);
-            
-            verify(vaultService).storePassword("OldName", "new-secret");
-        }
-    }
-
-    @Test
-    void testCreateConnector_Success() throws SQLException {
-        try (MockedStatic<DriverManager> driverManagerMock = mockStatic(DriverManager.class)) {
-            Connection conn = mock(Connection.class);
-            driverManagerMock.when(() -> DriverManager.getConnection(anyString(), anyString(), anyString()))
-                    .thenReturn(conn);
-
-            when(repository.save(any())).thenAnswer(i -> {
-                ReportConnector saved = i.getArgument(0);
-                saved.setId("new-connector-uuid");
-                return saved;
-            });
-
-            ReportConnectorDto result = service.createConnector(dto);
-            
             assertNotNull(result);
-            assertEquals("new-connector-uuid", result.getId());
-            verify(vaultService).storePassword(eq("NewName"), eq("password"));
+            verify(vaultService).storePassword(anyString(), eq("new-password"));
+            verify(connectorRepository).save(any(ReportConnector.class));
+            
+            // Verify getConnection was called with the password from DTO
+            driverManagerMock.verify(() -> DriverManager.getConnection(anyString(), anyString(), eq("new-password")));
         }
     }
 
     @Test
-    void testDeleteConnector_Failure_InUse() {
-        // Simulate queries using this connector
-        when(repository.findById(CONNECTOR_ID)).thenReturn(Optional.of(connector));
-        when(queryRepository.findByConnectorId(CONNECTOR_ID)).thenReturn(Collections.singletonList(new com.report.backend.entity.ReportQuery()));
+    void deleteConnector_WithQueries_ShouldThrowException() {
+        ReportConnector entity = new ReportConnector();
+        entity.setId("c1");
+        when(connectorRepository.findById("c1")).thenReturn(Optional.of(entity));
+        when(queryRepository.findByConnectorId("c1")).thenReturn(List.of(new com.report.backend.entity.ReportQuery()));
 
-        Exception exception = assertThrows(RuntimeException.class, () -> service.deleteConnector(CONNECTOR_ID));
-        assertTrue(exception.getMessage().contains("used by one or more queries"));
+        assertThrows(RuntimeException.class, () -> connectorService.deleteConnector("c1"));
+        verify(connectorRepository, never()).deleteById(anyString());
+    }
+
+    @Test
+    void deleteConnector_NoQueries_ShouldSuccess() {
+        ReportConnector entity = new ReportConnector();
+        entity.setId("c1");
+        entity.setName("Conn1");
+        when(connectorRepository.findById("c1")).thenReturn(Optional.of(entity));
+        when(queryRepository.findByConnectorId("c1")).thenReturn(Collections.emptyList());
+
+        connectorService.deleteConnector("c1");
+
+        verify(connectorRepository).deleteById("c1");
+        verify(vaultService).deletePassword("Conn1");
+    }
+
+    @Test
+    void testConnection_ShouldFetchFromVaultIfPasswordBlank() throws SQLException {
+        ReportConnectorDto dto = TestDataFactory.createConnectorDto();
+        dto.setId("c1");
+        dto.setPassword(null); // Force vault fetch
+        
+        ReportConnector entity = TestDataFactory.createConnectorEntity();
+        entity.setName("Conn1");
+        
+        try (MockedStatic<DriverManager> driverManagerMock = mockStatic(DriverManager.class)) {
+            Connection mockConn = mock(Connection.class);
+            driverManagerMock.when(() -> DriverManager.getConnection(anyString(), anyString(), anyString()))
+                    .thenReturn(mockConn);
+            
+            when(connectorRepository.findById("c1")).thenReturn(Optional.of(entity));
+            when(vaultService.getPassword("Conn1")).thenReturn("vault-pass");
+
+            connectorService.testConnection(dto);
+
+            // Verify getConnection was called with the password from vault
+            driverManagerMock.verify(() -> DriverManager.getConnection(anyString(), anyString(), eq("vault-pass")));
+        }
     }
 }

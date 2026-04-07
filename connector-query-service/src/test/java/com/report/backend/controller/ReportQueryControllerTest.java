@@ -19,6 +19,7 @@ import java.util.Map;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(ReportQueryController.class)
@@ -45,6 +46,16 @@ class ReportQueryControllerTest {
     }
 
     @Test
+    void getQueriesByConnector_ShouldReturnList() throws Exception {
+        ReportQueryDto dto = TestDataFactory.createQueryDto();
+        when(queryService.getQueriesByConnector("conn-1")).thenReturn(Collections.singletonList(dto));
+
+        mockMvc.perform(get("/api/queries/connector/conn-1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(dto.getId()));
+    }
+
+    @Test
     void getQueryById_Found_ShouldReturnDto() throws Exception {
         ReportQueryDto dto = TestDataFactory.createQueryDto();
         when(queryService.getQueryById("query-123")).thenReturn(dto);
@@ -52,6 +63,25 @@ class ReportQueryControllerTest {
         mockMvc.perform(get("/api/queries/query-123"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(dto.getId()));
+    }
+
+    @Test
+    void getQueryByName_Found_ShouldReturnDto() throws Exception {
+        ReportQueryDto dto = TestDataFactory.createQueryDto();
+        dto.setName("q1"); // Match search parameter
+        when(queryService.getQueryByConnectorAndName("c1", "q1")).thenReturn(dto);
+
+        mockMvc.perform(get("/api/queries/search?connectorId=c1&name=q1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("q1"));
+    }
+
+    @Test
+    void getQueryByName_NotFound_ShouldReturn404() throws Exception {
+        when(queryService.getQueryByConnectorAndName(anyString(), anyString())).thenReturn(null);
+
+        mockMvc.perform(get("/api/queries/search?connectorId=c1&name=invalid"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -82,11 +112,15 @@ class ReportQueryControllerTest {
     }
 
     @Test
-    void deleteQuery_ShouldReturnNoContent() throws Exception {
-        mockMvc.perform(delete("/api/queries/query-123"))
-                .andExpect(status().isNoContent());
+    void validateQuery_ShouldReturnOk() throws Exception {
+        ReportQueryDto dto = TestDataFactory.createQueryDto();
+        
+        mockMvc.perform(post("/api/queries/validate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk());
 
-        verify(queryService).deleteQuery("query-123");
+        verify(queryService).validateQuerySyntax(any(ReportQueryDto.class));
     }
 
     @Test
@@ -112,5 +146,13 @@ class ReportQueryControllerTest {
                 .andExpect(jsonPath("$").isArray());
 
         verify(queryService).getPlaceholders("query-123");
+    }
+
+    @Test
+    void deleteQuery_ShouldReturnNoContent() throws Exception {
+        mockMvc.perform(delete("/api/queries/query-123"))
+                .andExpect(status().isNoContent());
+
+        verify(queryService).deleteQuery("query-123");
     }
 }

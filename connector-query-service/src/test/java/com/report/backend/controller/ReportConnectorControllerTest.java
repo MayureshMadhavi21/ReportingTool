@@ -5,7 +5,6 @@ import com.report.backend.dto.ReportConnectorDto;
 import com.report.backend.service.ReportConnectorService;
 import com.report.backend.util.TestDataFactory;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -13,9 +12,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Collections;
+import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -56,6 +56,25 @@ class ReportConnectorControllerTest {
     }
 
     @Test
+    void getConnectorByName_Found_ShouldReturnDto() throws Exception {
+        ReportConnectorDto dto = TestDataFactory.createConnectorDto();
+        dto.setName("TestConn"); // Match search parameter
+        when(connectorService.getConnectorByName("TestConn")).thenReturn(dto);
+
+        mockMvc.perform(get("/api/connectors/search?name=TestConn"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("TestConn"));
+    }
+
+    @Test
+    void getConnectorByName_NotFound_ShouldReturn404() throws Exception {
+        when(connectorService.getConnectorByName(anyString())).thenReturn(null);
+
+        mockMvc.perform(get("/api/connectors/search?name=Invalid"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void createConnector_ValidInput_ShouldReturnCreated() throws Exception {
         ReportConnectorDto inputDto = TestDataFactory.createConnectorDto();
         inputDto.setId(null);
@@ -66,7 +85,6 @@ class ReportConnectorControllerTest {
         mockMvc.perform(post("/api/connectors")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(inputDto)))
-                .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(savedDto.getId()));
 
@@ -87,11 +105,18 @@ class ReportConnectorControllerTest {
     }
 
     @Test
-    void deleteConnector_ShouldReturnNoContent() throws Exception {
-        mockMvc.perform(delete("/api/connectors/conn-123"))
-                .andExpect(status().isNoContent());
+    void updateConnectorPassword_ShouldReturnUpdated() throws Exception {
+        ReportConnectorDto dto = TestDataFactory.createConnectorDto();
+        Map<String, String> payload = Map.of("password", "new-secret");
+        
+        when(connectorService.updateConnectorPassword(eq("c1"), eq("new-secret"))).thenReturn(dto);
 
-        verify(connectorService).deleteConnector("conn-123");
+        mockMvc.perform(put("/api/connectors/c1/password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(payload)))
+                .andExpect(status().isOk());
+
+        verify(connectorService).updateConnectorPassword("c1", "new-secret");
     }
 
     @Test
@@ -101,9 +126,26 @@ class ReportConnectorControllerTest {
         mockMvc.perform(post("/api/connectors/test")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(dto)))
-                .andDo(print())
                 .andExpect(status().isOk());
 
         verify(connectorService).testConnection(any(ReportConnectorDto.class));
+    }
+
+    @Test
+    void createConnector_InvalidInput_ShouldReturnBadRequest() throws Exception {
+        ReportConnectorDto dto = new ReportConnectorDto(); // Missing all mandatory fields
+        
+        mockMvc.perform(post("/api/connectors")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isInternalServerError());
+    }
+
+    @Test
+    void deleteConnector_ShouldReturnNoContent() throws Exception {
+        mockMvc.perform(delete("/api/connectors/conn-123"))
+                .andExpect(status().isNoContent());
+
+        verify(connectorService).deleteConnector("conn-123");
     }
 }

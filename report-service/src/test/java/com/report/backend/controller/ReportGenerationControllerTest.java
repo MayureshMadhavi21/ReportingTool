@@ -19,8 +19,7 @@ import java.util.Collections;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(ReportGenerationController.class)
 class ReportGenerationControllerTest {
@@ -38,22 +37,65 @@ class ReportGenerationControllerTest {
     private ObjectMapper objectMapper;
 
     @Test
-    void generateReport_ShouldReturnFileBytes() throws Exception {
+    void generateReport_Docx_ShouldReturnDocxBytes() throws Exception {
         ReportGenerationRequestDto request = TestDataFactory.createGenerationRequest();
+        request.setFormat("DOCX");
         byte[] expectedBytes = new byte[]{1, 2, 3};
 
         ReportTemplateDto templateDto = TestDataFactory.createTemplateDto();
         ReportTemplateVersionDto versionDto = TestDataFactory.createVersionDto();
+        versionDto.setStoragePath("test.docx");
         templateDto.setVersions(Collections.singletonList(versionDto));
 
         when(templateService.getTemplateById(anyString())).thenReturn(templateDto);
-        when(generationService.generateReport(anyString(), anyInt(), anyString(), anyMap()))
+        when(generationService.generateReport(anyString(), any(), anyString(), anyMap()))
                 .thenReturn(expectedBytes);
 
         mockMvc.perform(post("/api/generate")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
                 .andExpect(content().bytes(expectedBytes));
+    }
+
+    @Test
+    void generateReport_Pdf_ShouldReturnPdfBytes() throws Exception {
+        ReportGenerationRequestDto request = TestDataFactory.createGenerationRequest();
+        request.setFormat("PDF");
+        
+        ReportTemplateDto templateDto = TestDataFactory.createTemplateDto();
+        templateDto.setVersions(Collections.singletonList(new ReportTemplateVersionDto()));
+
+        when(templateService.getTemplateById(anyString())).thenReturn(templateDto);
+        when(generationService.generateReport(anyString(), any(), anyString(), anyMap()))
+                .thenReturn(new byte[0]);
+
+        mockMvc.perform(post("/api/generate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "application/pdf"));
+    }
+
+    @Test
+    void generateReport_Xlsx_ShouldReturnXlsxBytes() throws Exception {
+        ReportGenerationRequestDto request = TestDataFactory.createGenerationRequest();
+        request.setFormat("XLSX");
+        
+        ReportTemplateDto templateDto = TestDataFactory.createTemplateDto();
+        ReportTemplateVersionDto versionDto = new ReportTemplateVersionDto();
+        versionDto.setStoragePath("test.xlsx");
+        templateDto.setVersions(Collections.singletonList(versionDto));
+
+        when(templateService.getTemplateById(anyString())).thenReturn(templateDto);
+        when(generationService.generateReport(anyString(), any(), anyString(), anyMap()))
+                .thenReturn(new byte[0]);
+
+        mockMvc.perform(post("/api/generate")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
     }
 }
