@@ -26,8 +26,11 @@ CREATE TABLE rp_report_connector (
     use_raw_url BIT DEFAULT 0,
     username VARCHAR(100) NOT NULL,
     password_encrypted VARCHAR(MAX),
-    created_at DATETIME2 DEFAULT GETDATE(),
-    updated_at DATETIME2 DEFAULT GETDATE()
+    created_by VARCHAR(100),
+    modified_by VARCHAR(100),
+    created_date DATETIME2 DEFAULT GETDATE(),
+    modified_date DATETIME2 DEFAULT GETDATE(),
+    is_deleted INT DEFAULT 0
 );
 
 -- 2.2 Report Queries (Connector-Query Service)
@@ -37,8 +40,11 @@ CREATE TABLE rp_report_query (
     name VARCHAR(100) NOT NULL UNIQUE,
     query_text NVARCHAR(MAX) NOT NULL,
     description VARCHAR(500),
-    created_at DATETIME2 DEFAULT GETDATE(),
-    updated_at DATETIME2 DEFAULT GETDATE(),
+    created_by VARCHAR(100),
+    modified_by VARCHAR(100),
+    created_date DATETIME2 DEFAULT GETDATE(),
+    modified_date DATETIME2 DEFAULT GETDATE(),
+    is_deleted INT DEFAULT 0,
     CONSTRAINT FK_Query_Connector FOREIGN KEY (connector_id) REFERENCES rp_report_connector(id)
 );
 
@@ -57,8 +63,11 @@ CREATE TABLE rp_report_template (
     id VARCHAR(36) PRIMARY KEY,
     name VARCHAR(200) NOT NULL UNIQUE,
     description VARCHAR(500),
-    created_at DATETIME2 DEFAULT GETDATE(),
-    updated_at DATETIME2 DEFAULT GETDATE()
+    created_by VARCHAR(100),
+    modified_by VARCHAR(100),
+    created_date DATETIME2 DEFAULT GETDATE(),
+    modified_date DATETIME2 DEFAULT GETDATE(),
+    is_deleted INT DEFAULT 0
 );
 
 -- 2.5 Report Template Versions (Report Service)
@@ -67,9 +76,12 @@ CREATE TABLE rp_report_template_version (
     template_id VARCHAR(36) NOT NULL,
     version_number INT NOT NULL,
     storage_path VARCHAR(1000) NOT NULL,
-    created_by VARCHAR(100),
     is_active INT NOT NULL DEFAULT 0, -- 0: Inactive, 1: Active
-    created_at DATETIME2 DEFAULT GETDATE(),
+    created_by VARCHAR(100),
+    modified_by VARCHAR(100),
+    created_date DATETIME2 DEFAULT GETDATE(),
+    modified_date DATETIME2 DEFAULT GETDATE(),
+    is_deleted INT DEFAULT 0,
     CONSTRAINT FK_Version_Template FOREIGN KEY (template_id) REFERENCES rp_report_template(id) ON DELETE CASCADE
 );
 
@@ -83,7 +95,11 @@ CREATE TABLE rp_template_query_mapping (
     connector_name VARCHAR(255),
     connector_db_type VARCHAR(50),
     json_node_name VARCHAR(100) NOT NULL, -- e.g. "salesData"
-    created_at DATETIME2 DEFAULT GETDATE(),
+    created_by VARCHAR(100),
+    modified_by VARCHAR(100),
+    created_date DATETIME2 DEFAULT GETDATE(),
+    modified_date DATETIME2 DEFAULT GETDATE(),
+    is_deleted INT DEFAULT 0,
     CONSTRAINT FK_Mapping_Version FOREIGN KEY (template_version_id) REFERENCES rp_report_template_version(id) ON DELETE CASCADE,
     CONSTRAINT UQ_Version_Node UNIQUE (template_version_id, json_node_name)
 );
@@ -99,25 +115,25 @@ CREATE INDEX IDX_Map_Ver ON rp_template_query_mapping(template_version_id);
 -- ==================================================================================
 
 -- Sample Connector
-INSERT INTO rp_report_connector (id, name, db_type, jdbc_url, username, password_encrypted)
-VALUES ('c1a2b3c4-5d6e-7f8g-9h0i-1j2k3l4m5n6o', 'Production Sales DB', 'SQL_SERVER', 'jdbc:sqlserver://prod-db:1433;databaseName=Sales', 'report_user', 'ENC(some-encrypted-pass)');
+INSERT INTO rp_report_connector (id, name, db_type, jdbc_url, username, password_encrypted, created_by, modified_by)
+VALUES ('c1a2b3c4-5d6e-7f8g-9h0i-1j2k3l4m5n6o', 'Production Sales DB', 'SQL_SERVER', 'jdbc:sqlserver://prod-db:1433;databaseName=Sales', 'report_user', 'ENC(some-encrypted-pass)', 'system', 'system');
 
 -- Sample Query
-INSERT INTO rp_report_query (id, connector_id, name, query_text, description)
-VALUES ('q9z8y7x6-5w4v-3u2t-1s0r-q9p8o7n6m5l4', 'c1a2b3c4-5d6e-7f8g-9h0i-1j2k3l4m5n6o', 'Monthly Sales Report', 'SELECT region, sum(amount) as total FROM sales WHERE month = :monthValue GROUP BY region', 'Fetches Regional Sales Summary');
+INSERT INTO rp_report_query (id, connector_id, name, query_text, description, created_by, modified_by)
+VALUES ('q9z8y7x6-5w4v-3u2t-1s0r-q9p8o7n6m5l4', 'c1a2b3c4-5d6e-7f8g-9h0i-1j2k3l4m5n6o', 'Monthly Sales Report', 'SELECT region, sum(amount) as total FROM sales WHERE month = :monthValue GROUP BY region', 'Fetches Regional Sales Summary', 'system', 'system');
 
 -- Query Placeholders
 INSERT INTO rp_report_query_placeholder_metadata (query_id, placeholder_name, data_type, description)
 VALUES ('q9z8y7x6-5w4v-3u2t-1s0r-q9p8o7n6m5l4', 'monthValue', 'INTEGER', 'The month to report (1-12)');
 
 -- Sample Template
-INSERT INTO rp_report_template (id, name, description)
-VALUES ('t1122334-4455-6677-8899-00aabbccddee', 'Standard Monthly Sales Template', 'Word template for regional monthly sales');
+INSERT INTO rp_report_template (id, name, description, created_by, modified_by)
+VALUES ('t1122334-4455-6677-8899-00aabbccddee', 'Standard Monthly Sales Template', 'Word template for regional monthly sales', 'system', 'system');
 
 -- Sample Template Version (Active)
-INSERT INTO rp_report_template_version (id, template_id, version_number, storage_path, created_by, is_active)
-VALUES ('v1122334-4455-6677-8899-00aabbccddee', 't1122334-4455-6677-8899-00aabbccddee', 1, 'templates/t1_v1.docx', 'admin', 1);
+INSERT INTO rp_report_template_version (id, template_id, version_number, storage_path, is_active, created_by, modified_by)
+VALUES ('v1122334-4455-6677-8899-00aabbccddee', 't1122334-4455-6677-8899-00aabbccddee', 1, 'templates/t1_v1.docx', 1, 'system', 'system');
 
 -- Sample Mapping
-INSERT INTO rp_template_query_mapping (id, template_version_id, query_id, query_name, json_node_name)
-VALUES ('m1122334-4455-6677-8899-00aabbccddee', 'v1122334-4455-6677-8899-00aabbccddee', 'q9z8y7x6-5w4v-3u2t-1s0r-q9p8o7n6m5l4', 'Monthly Sales Report', 'salesData');
+INSERT INTO rp_template_query_mapping (id, template_version_id, query_id, query_name, json_node_name, created_by, modified_by)
+VALUES ('m1122334-4455-6677-8899-00aabbccddee', 'v1122334-4455-6677-8899-00aabbccddee', 'q9z8y7x6-5w4v-3u2t-1s0r-q9p8o7n6m5l4', 'Monthly Sales Report', 'salesData', 'system', 'system');

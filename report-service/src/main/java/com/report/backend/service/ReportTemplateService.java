@@ -705,7 +705,7 @@ public class ReportTemplateService {
 
         dto.setCreatedBy(version.getCreatedBy());
         dto.setIsActive(version.getIsActive() != null ? version.getIsActive() : 0);
-        dto.setCreatedAt(version.getCreatedAt());
+        dto.setCreatedDate(version.getCreatedDate());
         dto.setMappings(version.getMappings().stream()
                 .map(this::mapMappingToDto)
                 .collect(Collectors.toList()));

@@ -6,7 +6,7 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "Template_Query_Mapping", uniqueConstraints = {
+@Table(name = "rp_template_query_mapping", uniqueConstraints = {
         @UniqueConstraint(columnNames = { "template_version_id", "json_node_name" })
 })
 @Getter
@@ -39,14 +39,36 @@ public class TemplateQueryMapping {
     @Column(name = "json_node_name", nullable = false, length = 100)
     private String jsonNodeName;
 
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
+    @Column(name = "created_by", length = 100)
+    private String createdBy;
+
+    @Column(name = "modified_by", length = 100)
+    private String modifiedBy;
+
+    @Column(name = "created_date", updatable = false)
+    private LocalDateTime createdDate;
+
+    @Column(name = "modified_date")
+    private LocalDateTime modifiedDate;
+
+    @Column(name = "is_deleted", nullable = false)
+    private Integer isDeleted = 0;
 
     @PrePersist
     protected void onCreate() {
         if (id == null) {
             id = java.util.UUID.randomUUID().toString();
         }
-        createdAt = LocalDateTime.now();
+        this.createdDate = LocalDateTime.now();
+        this.modifiedDate = LocalDateTime.now();
+        this.createdBy = "system";
+        this.modifiedBy = "system";
+        this.isDeleted = 0;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.modifiedDate = LocalDateTime.now();
+        this.modifiedBy = "system";
     }
 }

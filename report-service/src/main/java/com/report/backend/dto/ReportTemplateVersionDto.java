@@ -12,6 +12,6 @@ public class ReportTemplateVersionDto {
     private String fileType;
     private String createdBy;
     private Integer isActive = 0;
-    private LocalDateTime createdAt;
+    private LocalDateTime createdDate;
     private List<TemplateQueryMappingDto> mappings;
 }
